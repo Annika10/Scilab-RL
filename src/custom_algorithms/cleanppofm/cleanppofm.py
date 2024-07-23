@@ -14,7 +14,7 @@ from torch.nn import functional as F
 
 from custom_algorithms.cleanppofm.forward_model import ProbabilisticSimpleForwardNet, \
     ProbabilisticForwardNetPositionPrediction, ProbabilisticSimpleForwardNetIncludingReward, \
-    ProbabilisticForwardNetPositionPredictionIncludingReward
+    ProbabilisticForwardNetPositionPredictionIncludingReward, SimpleConvModel
 from custom_algorithms.cleanppofm.utils import flatten_obs, get_reward_estimation_of_forward_model, \
     get_position_of_observation, get_next_observation_gridworld, get_reward_with_future_reward_estimation_corrective
 from custom_algorithms.cleanppofm.agent import Agent
@@ -171,7 +171,11 @@ class CLEANPPOFM:
             fm_cls = ProbabilisticForwardNetPositionPredictionIncludingReward if self.reward_predicting else \
                 ProbabilisticForwardNetPositionPrediction
         else:
-            fm_cls = ProbabilisticSimpleForwardNetIncludingReward if self.reward_predicting else ProbabilisticSimpleForwardNet
+            #fm_cls = ProbabilisticSimpleForwardNetIncludingReward if self.reward_predicting else ProbabilisticSimpleForwardNet
+            if self.reward_predicting:
+                raise NotImplementedError("Reward prediction not implemented for SimpleConvModel")
+            else:
+                fm_cls = SimpleConvModel
         self.fm_network = fm_cls(self.env, self.fm_parameters).to(device)
         self.fm_optimizer = torch.optim.Adam(
             self.fm_network.parameters(),
