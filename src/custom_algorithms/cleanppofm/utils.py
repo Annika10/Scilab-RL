@@ -1,7 +1,19 @@
 import numpy as np
 import torch
+from torch import Tensor
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def form_observation_data_item_into_classes(data: np.array) -> Tensor:
+    data_item_with_classes = np.select(
+        [data == -10, data == -5, data == -1, data == 0, data == 1, np.isin(data, [2, 3])],
+        [0, 1, 2, 3, 4, 5],
+        default=-1
+    )
+    if np.any(data_item_with_classes == -1):
+        raise ValueError(f"Invalid data_utils item: {np.argwhere(np.any(data_item_with_classes == -1))}")
+    return torch.from_numpy(data_item_with_classes)
 
 
 def flatten_obs(obs: dict) -> torch.Tensor:

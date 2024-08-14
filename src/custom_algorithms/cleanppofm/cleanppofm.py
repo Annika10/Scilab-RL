@@ -75,6 +75,7 @@ class CLEANPPOFM:
             vf_coef: float = 0.5,
             max_grad_norm: float = 0.5,
             # up until here the same as in the stable-baselines3 implementation
+            new_forward_model: bool = True,
             fm_parameters: dict = None,
             position_predicting: bool = False,
             reward_predicting: bool = False,
@@ -140,6 +141,8 @@ class CLEANPPOFM:
 
         # Forward model (own implementation)
         self.fm_parameters = fm_parameters
+        # Whether to use new forward model (simple convolutional model) or previous approaches
+        self.new_forward_model = new_forward_model
         # (boolean) in moonlander env, you can choose if the forward model predicts the complete next observation
         # or just the next position of the agent in the observation
         self.position_predicting = position_predicting
@@ -167,16 +170,21 @@ class CLEANPPOFM:
                 f" but because you set the `reward_predicting` parameter to False,"
                 f" it does not have any effect.\n"
             )
-        if self.position_predicting:
-            fm_cls = ProbabilisticForwardNetPositionPredictionIncludingReward if self.reward_predicting else \
-                ProbabilisticForwardNetPositionPrediction
+
+        if self.new_forward_model:
+            fm_cls = SimpleConvModel
         else:
-            #fm_cls = ProbabilisticSimpleForwardNetIncludingReward if self.reward_predicting else ProbabilisticSimpleForwardNet
-            if self.reward_predicting:
-                raise NotImplementedError("Reward prediction not implemented for SimpleConvModel")
+            if self.position_predicting:
+                fm_cls = ProbabilisticForwardNetPositionPredictionIncludingReward if self.reward_predicting else \
+                    ProbabilisticForwardNetPositionPrediction
             else:
-                fm_cls = SimpleConvModel
-        self.fm_network = fm_cls(self.env, self.fm_parameters).to(device)
+                fm_cls = ProbabilisticSimpleForwardNetIncludingReward if self.reward_predicting else ProbabilisticSimpleForwardNet
+
+        if not fm_cls == ProbabilisticForwardNetPositionPredictionIncludingReward:
+            self.fm_network = fm_cls(self.env, self.fm_parameters).to(device)
+        else:
+            self.fm_network = fm_cls(self.env, self.fm_parameters, self.maximum_number_of_objects).to(device)
+
         self.fm_optimizer = torch.optim.Adam(
             self.fm_network.parameters(),
             lr=self.fm_parameters["learning_rate"]
@@ -559,26 +567,33 @@ class CLEANPPOFM:
         # 3. with or without input noise
 
         # gridworld or moonlander without position predicting
-        if not self.position_predicting:
-            # the if-clause is only implemented for the gridworld env
-            # an error is raised in the __init__ method if the moonlander env is used with training without input noise
-            if not self.fm_trained_with_input_noise:
-                agent_location_without_input_noise = get_next_observation_gridworld(observations=observations,
-                                                                                    actions=actions)
-
-                next_observations_formatted = agent_location_without_input_noise if not self.reward_predicting else torch.cat(
-                    (agent_location_without_input_noise, rewards.unsqueeze(dim=1)), dim=1)
-            # default case: observation optional with reward
-            else:
-                next_observations_formatted = next_observations if not self.reward_predicting else torch.cat(
-                    (next_observations, rewards.unsqueeze(dim=1)), dim=1)
-        # moonlander
-        else:
+        if self.new_forward_model:
             # get position out of observation
             observations = get_position_of_observation(observations)
             next_observations_formatted = get_position_of_observation(next_observations)
             if self.reward_predicting:
                 next_observations_formatted = torch.cat((next_observations_formatted, rewards), dim=1)
+        else:
+            if not self.position_predicting:
+                # the if-clause is only implemented for the gridworld env
+                # an error is raised in the __init__ method if the moonlander env is used with training without input noise
+                if not self.fm_trained_with_input_noise:
+                    agent_location_without_input_noise = get_next_observation_gridworld(observations=observations,
+                                                                                        actions=actions)
+
+                    next_observations_formatted = agent_location_without_input_noise if not self.reward_predicting else torch.cat(
+                        (agent_location_without_input_noise, rewards.unsqueeze(dim=1)), dim=1)
+                # default case: observation optional with reward
+                else:
+                    next_observations_formatted = next_observations if not self.reward_predicting else torch.cat(
+                        (next_observations, rewards.unsqueeze(dim=1)), dim=1)
+            # moonlander
+            else:
+                # get position out of observation
+                observations = get_position_of_observation(observations)
+                next_observations_formatted = get_position_of_observation(next_observations)
+                if self.reward_predicting:
+                    next_observations_formatted = torch.cat((next_observations_formatted, rewards), dim=1)
 
         ##### FORWARD MODEL TRAINING #####
         # forward model prediction

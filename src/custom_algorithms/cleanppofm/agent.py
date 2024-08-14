@@ -6,6 +6,7 @@ from gymnasium import spaces
 from torch.distributions.categorical import Categorical
 from stable_baselines3.common.logger import Logger
 from custom_algorithms.cleanppofm.utils import flatten_obs, layer_init, get_position_of_observation
+from custom_algorithms.cleanppofm.utils import form_observation_data_item_into_classes
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -67,7 +68,8 @@ class Agent(nn.Module):
                                                                                action=None,
                                                                                deterministic: bool = False,
                                                                                logger: Logger = None,
-                                                                               position_predicting: bool = False) -> \
+                                                                               position_predicting: bool = False,
+                                                                               use_new_forward_model: bool = True) -> \
             tuple[
                 torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.distributions.Normal, float]:
         """
@@ -128,11 +130,17 @@ class Agent(nn.Module):
         # predict next state from last state and selected action
         # formal_normal_action in form of tensor([[action]])
         # get position of last state out of the observation --> moonlander specific implementation
-        if position_predicting:
-            positions = get_position_of_observation(obs)
-            forward_model_prediction_normal_distribution = fm_network(positions, forward_normal_action.float())
+        if use_new_forward_model:
+            obs = np.transpose(obs.reshape(1, 30, 42), (0, 2, 1))
+            obs = form_observation_data_item_into_classes(obs)
+            obs = torch.nn.functional.one_hot(obs, num_classes=6).permute(0, 3, 1, 2)
+            forward_model_prediction_normal_distribution = fm_network(obs, torch.nn.functional.one_hot(forward_normal_action[0], num_classes=3).float())
         else:
-            forward_model_prediction_normal_distribution = fm_network(obs, forward_normal_action.float())
+            if position_predicting:
+                positions = get_position_of_observation(obs)
+                forward_model_prediction_normal_distribution = fm_network(positions, forward_normal_action.float())
+            else:
+                forward_model_prediction_normal_distribution = fm_network(obs, forward_normal_action.float())
 
         ##### CALCULATE PREDICTION ERROR #####
         # prediction error version one -> standard deviation
@@ -150,25 +158,29 @@ class Agent(nn.Module):
             prediction_error = (math.sqrt(torch.sum((predicted_location - obs) ** 2))) / max_distance_in_gridworld
         elif env_name == "MoonlanderWorldEnv":
             # we just care for the x position of the moonlander agent, because the y position is always equally to the size of the agent
-            if position_predicting:
-                positions = get_position_of_observation(obs)
-
-                # Smallest x position of the agent is the size of the agent
-                # Biggest x position of the agent is the width of the moonlander world - the size of the agent
-                first_possible_x_position = self.env.get_attr("first_possible_x_position")[0]
-                last_possible_x_position = self.env.get_attr("last_possible_x_position")[0]
-                max_distance_in_moonlander_world = math.sqrt(
-                    (last_possible_x_position - first_possible_x_position) ** 2)
-                predicted_x_position = torch.tensor([min(max(first_possible_x_position,
-                                                             forward_model_prediction_normal_distribution.mean.cpu().detach().numpy()[
-                                                                 0][0]),
-                                                         last_possible_x_position)])
-                prediction_error = (math.sqrt(
-                    torch.sum((predicted_x_position - positions[0]) ** 2))) / max_distance_in_moonlander_world
-            # TODO: implement prediction error calculation for moonlander world env with predicting whole observation
+            if use_new_forward_model:
+                # TODO: What to do here?
+                pass
             else:
-                raise NotImplementedError(
-                    "Prediction error calculation not implemented for MoonlanderWorldEnv with predicting whole observation!")
+                if position_predicting:
+                    positions = get_position_of_observation(obs)
+
+                    # Smallest x position of the agent is the size of the agent
+                    # Biggest x position of the agent is the width of the moonlander world - the size of the agent
+                    first_possible_x_position = self.env.get_attr("first_possible_x_position")[0]
+                    last_possible_x_position = self.env.get_attr("last_possible_x_position")[0]
+                    max_distance_in_moonlander_world = math.sqrt(
+                        (last_possible_x_position - first_possible_x_position) ** 2)
+                    predicted_x_position = torch.tensor([min(max(first_possible_x_position,
+                                                                 forward_model_prediction_normal_distribution.mean.cpu().detach().numpy()[
+                                                                     0][0]),
+                                                             last_possible_x_position)])
+                    prediction_error = (math.sqrt(
+                        torch.sum((predicted_x_position - positions[0]) ** 2))) / max_distance_in_moonlander_world
+                # TODO: implement prediction error calculation for moonlander world env with predicting whole observation
+                else:
+                    raise NotImplementedError(
+                        "Prediction error calculation not implemented for MoonlanderWorldEnv with predicting whole observation!")
         else:
             raise ValueError("Environment not supported")
 
