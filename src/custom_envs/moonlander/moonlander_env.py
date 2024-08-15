@@ -29,7 +29,8 @@ class MoonlanderWorldEnv(Env):
         "render_fps": 10,
     }
 
-    def __init__(self, task: str = "dodge", reward_function: str = "pos_neg"):
+    def __init__(self, task: str = "dodge", reward_function: str = "pos_neg",
+                 list_of_object_dict_lists: List[Dict] = None):
         """
         initialises the environment
         Args:
@@ -151,6 +152,7 @@ class MoonlanderWorldEnv(Env):
         self.first_possible_x_position = size
         self.last_possible_x_position = world_config["x_width"] - size + 1
         self.observation_height = agent_config["observation_height"]
+        self.observation_width = world_config["x_width"]
         self.task = task
 
         self.y_position_of_agent = agent_config["size"]
