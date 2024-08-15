@@ -15,7 +15,7 @@ from torch.nn import functional as F
 
 from custom_algorithms.cleanppofm.forward_model import ProbabilisticSimpleForwardNet, \
     ProbabilisticForwardNetPositionPrediction, ProbabilisticSimpleForwardNetIncludingReward, \
-    ProbabilisticForwardNetPositionPredictionIncludingReward
+    ProbabilisticForwardNetPositionPredictionIncludingReward, SimpleConvModel, ProbabilisticSimpleConv
 from custom_algorithms.cleanppofm.utils import flatten_obs, get_position_and_object_positions_of_observation, \
     get_next_observation_gridworld, reward_estimation, reward_calculation, calculate_prediction_error, \
     get_next_position_observation_moonlander, calculate_difficulty, normalize_rewards, get_next_whole_observation
@@ -78,6 +78,7 @@ class CLEANPPOFM:
             max_grad_norm: float = 0.5,
             # up until here the same as in the stable-baselines3 implementation
             fm_parameters: dict = None,
+            use_new_internal_model: bool = True,
             position_predicting: bool = False,
             reward_predicting: bool = False,
             normalized_rewards: bool = False,
@@ -146,6 +147,7 @@ class CLEANPPOFM:
 
         # Forward model (own implementation)
         self.fm_parameters = fm_parameters
+        self.use_new_internal_model = use_new_internal_model
         # (boolean) in moonlander env, you can choose if the forward model predicts the complete next observation
         # or just the next position of the agent in the observation
         self.position_predicting = position_predicting
@@ -177,7 +179,11 @@ class CLEANPPOFM:
             fm_cls = ProbabilisticForwardNetPositionPredictionIncludingReward if self.reward_predicting else \
                 ProbabilisticForwardNetPositionPrediction
         else:
-            fm_cls = ProbabilisticSimpleForwardNetIncludingReward if self.reward_predicting else ProbabilisticSimpleForwardNet
+            if use_new_internal_model:
+                #fm_cls = SimpleConvModel
+                fm_cls = ProbabilisticSimpleConv
+            else:
+                fm_cls = ProbabilisticSimpleForwardNetIncludingReward if self.reward_predicting else ProbabilisticSimpleForwardNet
         if not fm_cls == ProbabilisticForwardNetPositionPredictionIncludingReward:
             self.fm_network = fm_cls(self.env, self.fm_parameters).to(device)
         else:
