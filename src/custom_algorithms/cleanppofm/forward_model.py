@@ -195,7 +195,7 @@ class SimpleConvModel(nn.Module):
             self.reward_criterion = nn.MSELoss()
             self.reward_head = nn.Sequential(
                 nn.Flatten(),
-                nn.Linear(22 * 42 * 30, 64),
+                nn.Linear(22 * 12 * 10, 64),
                 nn.LeakyReLU(),
                 nn.Linear(64, 1),
             )
@@ -204,7 +204,7 @@ class SimpleConvModel(nn.Module):
             self.reward_criterion = nn.CrossEntropyLoss()
             self.reward_head = nn.Sequential(
                 nn.Flatten(),
-                nn.Linear(32 * 42 * 30, 64),
+                nn.Linear(32 * 12 * 10, 64),
                 nn.LeakyReLU(),
                 nn.Linear(64, 3),
             )
@@ -229,7 +229,7 @@ class SimpleConvModel(nn.Module):
         # Convert observation to classes
         x = form_observation_data_item_into_classes(x)
         # Change shape (batch, width * height) -> (batch, width, height)
-        x = x.reshape(-1, 30, 42).permute(0, 2, 1)
+        x = x.reshape(-1, 10, 12).permute(0, 2, 1)
         # Onehot encode classes (batch, width, height) -> (batch, width, height, channels)
         x = F.one_hot(x, num_classes=6)
         # Reshape for conv input (batch, width, height, channels) -> (batch, channels, width, height)
@@ -238,7 +238,7 @@ class SimpleConvModel(nn.Module):
         # Bring action to onehot format
         act = F.one_hot(act.long(), num_classes=3)
         # Repeat along spatial dimensions
-        act = act.squeeze(1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, 42, 30)
+        act = act.squeeze(1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, 12, 10)
 
         out = self.input(x.squeeze(1).float())
         out = self.residual_layer_1(torch.cat([out, act], dim=1))

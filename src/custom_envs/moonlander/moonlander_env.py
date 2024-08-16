@@ -955,7 +955,7 @@ class MoonlanderWorldEnv(Env):
             # tensor of (1,12)
             copy_of_forward_model_prediction = copy.deepcopy(self.forward_model_prediction)
             # build empty obs
-            matrix = np.zeros(shape=(30, 40 + 2), dtype=np.int16)
+            matrix = np.zeros(shape=(10, 10 + 2), dtype=np.int16)
 
             # add agent
             # first element is the y position of the agent, second element is the x position of the agent
