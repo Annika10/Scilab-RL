@@ -13,6 +13,9 @@ from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback
 from stable_baselines3.common.vec_env import VecEnv
 from torch.nn import functional as F
 
+import matplotlib
+#matplotlib.use('MacOSX')
+
 from custom_algorithms.cleanppofm.forward_model import ProbabilisticSimpleForwardNet, \
     ProbabilisticForwardNetPositionPrediction, ProbabilisticSimpleForwardNetIncludingReward, \
     ProbabilisticForwardNetPositionPredictionIncludingReward, SimpleConvModel, ProbabilisticSimpleConv
@@ -661,12 +664,15 @@ class CLEANPPOFM:
         self.soc = prediction_error
 
         ##### CALCULATING DIFFICULTY #####
-        difficulty = calculate_difficulty(env=self.env, policy=self.policy, fm_network=self.fm_network,
-                                          logger=self.logger, env_name=self.env_name,
-                                          prediction_error=prediction_error,
-                                          position_predicting=self.position_predicting,
-                                          maximum_number_of_objects=self.maximum_number_of_objects,
-                                          reward_predicting=self.reward_predicting)
+        if self.use_new_internal_model:
+            difficulty = 0.0
+        else:
+            difficulty = calculate_difficulty(env=self.env, policy=self.policy, fm_network=self.fm_network,
+                                              logger=self.logger, env_name=self.env_name,
+                                              prediction_error=prediction_error,
+                                              position_predicting=self.position_predicting,
+                                              maximum_number_of_objects=self.maximum_number_of_objects,
+                                              reward_predicting=self.reward_predicting)
 
         ##### CALCULATING SOC #####
         # soc = mean of prediction error and difficulty
@@ -686,7 +692,13 @@ class CLEANPPOFM:
                 number_of_future_steps=self.number_of_future_steps,
                 maximum_number_of_objects=self.maximum_number_of_objects)
         else:
-            reward_with_future_reward_estimation_corrective = reward_calculation(env=self.env, env_name=self.env_name,
+            if self.use_new_internal_model:
+                reward_with_future_reward_estimation_corrective = reward_calculation(env=self.env, env_name=self.env_name,
+                                                                                 rewards=rewards,
+                                                                                 prediction_error=prediction_error,
+                                                                                 number_of_future_steps=self.number_of_future_steps)
+            else:
+                reward_with_future_reward_estimation_corrective = reward_calculation(env=self.env, env_name=self.env_name,
                                                                                  rewards=rewards,
                                                                                  prediction_error=prediction_error,
                                                                                  number_of_future_steps=self.number_of_future_steps)
