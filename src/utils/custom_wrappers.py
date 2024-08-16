@@ -110,7 +110,7 @@ class DisplayWrapper(gym.Wrapper):
         dones = terminated | truncated
 
         # increment steps, episodes and epochs
-        if self.steps_per_epoch:
+        if hasattr(self, "steps_per_epoch") and self.steps_per_epoch is not None:
             epoch_id_tmp = self.epoch_id
             self.epoch_id = self.step_id // self.steps_per_epoch
             if self.epoch_id > epoch_id_tmp:

@@ -14,7 +14,7 @@ from stable_baselines3.common.vec_env import VecEnv
 from torch.nn import functional as F
 
 import matplotlib
-#matplotlib.use('MacOSX')
+matplotlib.use('MacOSX')
 
 from custom_algorithms.cleanppofm.forward_model import ProbabilisticSimpleForwardNet, \
     ProbabilisticForwardNetPositionPrediction, ProbabilisticSimpleForwardNetIncludingReward, \
@@ -183,7 +183,6 @@ class CLEANPPOFM:
                 ProbabilisticForwardNetPositionPrediction
         else:
             if use_new_internal_model:
-                #fm_cls = SimpleConvModel
                 fm_cls = ProbabilisticSimpleConv
             else:
                 fm_cls = ProbabilisticSimpleForwardNetIncludingReward if self.reward_predicting else ProbabilisticSimpleForwardNet
@@ -628,7 +627,8 @@ class CLEANPPOFM:
         # modify the env attributes as described here:
         # https://github.com/DLR-RM/stable-baselines3/blob/master/docs/guide/vec_envs.rst
         if not self.reward_predicting:
-            self.env.set_attr("forward_model_prediction", forward_normal.mean.cpu())
+            #self.env.set_attr("forward_model_prediction", forward_normal.mean.cpu())
+            self.env.env_method("set_forward_model_prediction", forward_normal.mean.cpu())
         # remove reward because it is not needed to display the predicted observation
         else:
             # FIXME

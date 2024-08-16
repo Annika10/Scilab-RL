@@ -209,7 +209,7 @@ class SimpleConvModel(nn.Module):
                 nn.Linear(64, 3),
             )
         else:
-            print("No reward prediction for this model")
+            pass
 
         self.output = nn.Conv2d(22, 6, 1, 1, 0)
 
@@ -285,11 +285,15 @@ class ProbabilisticSimpleConv(nn.Module):
         # Change output shape through fully connected layers (batch, 6, width, height) -> (batch, 1 * width * height)
         self.fc = nn.Linear(6 * self.obs_shape, self.obs_shape)
 
-        self.fw_mu = nn.Linear(self.obs_shape, self.obs_shape)
-        self.fw_std = nn.Linear(self.obs_shape, self.obs_shape)
+        if cfg["predict_reward"]:
+            self.fw_mu = nn.Linear(self.obs_shape, self.obs_shape + 1)
+            self.fw_std = nn.Linear(self.obs_shape, self.obs_shape + 1)
+        else:
+            self.fw_mu = nn.Linear(self.obs_shape, self.obs_shape)
+            self.fw_std = nn.Linear(self.obs_shape, self.obs_shape)
 
     def forward(self, obs, action):
-        hx, hr = self.state_action_encoder(obs, action)
+        hx, hr = self.state_action_encoder(obs.long(), action)
         hx = F.leaky_relu(hx)
         hx_flat = hx.reshape(obs.shape[0], -1)
         hx = self.fc(hx_flat)

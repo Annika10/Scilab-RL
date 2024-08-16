@@ -14,7 +14,7 @@ vf_coef: 0.5
 max_grad_norm: 0.5
 # following parameters are added by me
 position_predicting: false # boolean: if obs is an image, it is easier to predict the position of the agent in the image than the image itself, not relevant for other types of obs -> only tested with moonlander env
-reward_predicting: false # boolean: if the reward is also predicted by the forward model, otherwise the reward is taken from the environment
+reward_predicting: &predict_reward true # boolean: if the reward is also predicted by the forward model, otherwise the reward is taken from the environment
 normalized_rewards: true # boolean: if the rewards are normalized
 number_of_future_steps: 5 # int: the number of future steps to predict the rewards for
 fm_trained_with_input_noise: false # boolean: if the forward model is trained with data including input noise
@@ -26,4 +26,4 @@ fm_parameters:
   learning_rate: 0.001
   # reward_eta: 0.2 # small bonus by default
   # hidden_size: 256
-  reward_function: ""
+  predict_reward: *predict_reward
