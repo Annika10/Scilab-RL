@@ -311,6 +311,7 @@ class CustomEvalCallbackMetaAgent(EvalCallback):
     :param warn: Passed to ``evaluate_policy`` (warns if ``eval_env`` has not been
         wrapped with a Monitor wrapper)
     """
+    counter = 0
 
     def _on_step(self) -> bool:
 
@@ -327,6 +328,7 @@ class CustomEvalCallbackMetaAgent(EvalCallback):
                 return_episode_rewards=True,
                 warn=self.warn,
                 logger=self.logger,
+                counter=self.counter,
             )
 
             if self.log_path is not None:

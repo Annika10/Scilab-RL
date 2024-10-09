@@ -83,7 +83,7 @@ class MetaEnvPretrained(gym.Env):
         # FIXME: this is an ugly hack to load the trained agents
         with open(
                 os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                             f"../../../policies/{dodge_best_model_name}"), "rb"
+                             f"/home/ohneland/Jobs/COMPAS/Scilab-RL/models/dodge_best_fm_23_08_rl_model_best"), "rb"
         ) as file:
             print("start loading agents", file)
             self.trained_dodge_asteroids = CLEANPPOFM.load(path=file,
@@ -92,7 +92,7 @@ class MetaEnvPretrained(gym.Env):
             self.trained_dodge_asteroids.set_logger(logger=self.logger)
         with open(
                 os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                             f"../../../policies/{collect_best_model_name}"), "rb"
+                             f"/home/ohneland/Jobs/COMPAS/Scilab-RL/models/collect_best_fm_23_08_rl_model_best"), "rb"
         ) as file:
             # same model cannot be loaded twice -> copy does also not work
             self.trained_collect_asteroids = CLEANPPOFM.load(path=file,
@@ -229,10 +229,10 @@ class MetaEnvPretrained(gym.Env):
         # perform default action 1 in inactive task
         # only four return value because DummyVecEnv only returns observation, reward, done, info
         # but meta agent does not see actual state and reward
-        _, _, inactive_is_done, inactive_info = inactive_model.env.step(torch.tensor([1], device=device))
+        observation, _, inactive_is_done, inactive_info = inactive_model.env.step(torch.tensor([1], device=device))
         # get position and object positions of observation
         inactive_agent_and_object_positions_tensor = get_position_and_object_positions_of_observation(
-            torch.tensor(inactive_last_state, device=device),
+            torch.tensor(observation, device=device),
             observation_width=self.observation_width,
             observation_height=self.observation_height,
             maximum_number_of_objects=inactive_model.maximum_number_of_objects,
@@ -332,6 +332,8 @@ class MetaEnvPretrained(gym.Env):
                             # inactive_belief_state_normal_distribution.mean.cpu().detach().numpy()[0][0]),
                             inactive_gold_label.mean.cpu().detach().numpy()[0][0]),
                         self.observation_width - self.agent_size + 1))
+                objects_collect = inactive_agent_and_object_positions_tensor
+                objects_dodge = active_agent_and_object_positions_tensor
             case 1:
                 # collect task
                 self.state_of_dodge_asteroids = belief_state
@@ -365,6 +367,8 @@ class MetaEnvPretrained(gym.Env):
                 predicted_next_collect_position = round(
                     # min(max(1, active_belief_state_normal_distribution.mean.cpu().detach().numpy()[0][0]), 10))
                     min(max(1, active_gold_label.mean.cpu().detach().numpy()[0][0]), 10))
+                objects_collect = active_agent_and_object_positions_tensor
+                objects_dodge = inactive_agent_and_object_positions_tensor
             case _:
                 raise ValueError("action must be 0, 1")
 
@@ -376,6 +380,24 @@ class MetaEnvPretrained(gym.Env):
             axis=1,
         ).flatten()
 
+        config_path_dodge_asteroids = os.path.join(os.path.dirname(os.path.realpath(__file__)), "standard_config.yaml")
+        config_path_collect_asteroids = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                                     "standard_config_second_task.yaml")
+        with open(config_path_dodge_asteroids, "r") as file:
+            config_dodge_asteroids = yaml.safe_load(file)
+        with open(config_path_collect_asteroids, "r") as file:
+            config_collect_asteroids = yaml.safe_load(file)
+
+        difficulty_dodge = config_dodge_asteroids['world']['difficulty']
+        difficulty_collect = config_collect_asteroids['world']['difficulty']
+
+        drift_bool = config_dodge_asteroids['world']['drift']['drift_at_whole_level']
+
+        if drift_bool:
+            drift = "yes"
+        else:
+            drift = "no"
+
         self.step_counter += 1
         info = {"info_dodge": info_dodge, "info_collect": info_collect, "reward_dodge": reward_dodge,
                 "reward_collect": reward_collect, "action_meta": action, "dodge_position_before": last_dodge_position,
@@ -385,7 +407,10 @@ class MetaEnvPretrained(gym.Env):
                 "predicted_dodge_next_position": predicted_next_dodge_position,
                 "predicted_collect_next_position": predicted_next_collect_position,
                 "prediction_error": active_prediction_error, "difficulty": active_difficulty,
-                "SoC_dodge": self.SoC_dodge, "SoC_collect": self.SoC_collect}
+                "SoC_dodge": self.SoC_dodge, "SoC_collect": self.SoC_collect,
+                "objects_dodge": objects_dodge, "objects_collect": objects_collect,
+                "difficulty_dodge": difficulty_dodge, "difficulty_collect": difficulty_collect,
+                "drift": drift}
         return (
             self.state,
             active_reward_estimation_corrected_by_SoC + inactive_reward_estimation_corrected_by_SoC,
