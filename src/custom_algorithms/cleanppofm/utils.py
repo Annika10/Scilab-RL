@@ -3,6 +3,8 @@ import torch
 import math
 import copy
 
+from custom_envs.moonlander.helper_functions import calculate_gaussian_reward
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -156,6 +158,10 @@ def get_summed_up_reward_of_env_or_fm_with_predicted_states_of_fm(env, fm_networ
         raise ValueError(
             f"The current environment does not support the reward calculation for {number_of_future_steps} steps.")
     task = env.env_method("get_wrapper_attr", "task")[0]
+    if task == "dodge":
+        task_type = "obstacle"
+    elif task == "collect":
+        task_type = "coin"
 
     observation_height = env.env_method("get_wrapper_attr", "observation_height")[0]
     observation_width = env.env_method("get_wrapper_attr", "observation_width")[0]
@@ -164,63 +170,97 @@ def get_summed_up_reward_of_env_or_fm_with_predicted_states_of_fm(env, fm_networ
     # last_observation = np.expand_dims(env.env_method("get_wrapper_attr", "state")[0].flatten(), axis=0)
 
     # simulate the default and optimal trajectory
-    copied_env = copy.deepcopy(env)
+    # copied_env = copy.deepcopy(env)
+    #
+    # # set last_observation in env
+    # # environment assumes a numpy array as state
+    # copied_env.env_method("set_state", last_observation)
+    #
+    # # remove possible input noise in the environment
+    # copied_env.env_method("set_input_noise", 0)
+    #
+    # done = copied_env.env_method("is_done")[0]
 
-    # set last_observation in env
-    # environment assumes a numpy array as state
-    copied_env.env_method("set_state", last_observation)
-
-    # remove possible input noise in the environment
-    copied_env.env_method("set_input_noise", 0)
-
-    done = copied_env.env_method("is_done")[0]
-
-    # first obs are positions, then you have to change back at the end of the loop to positions
-
+    last_observation_state = np.expand_dims(
+        get_observation_of_position_and_object_positions(agent_and_object_positions=last_observation,
+                                                         observation_height=observation_height,
+                                                         observation_width=observation_width,
+                                                         agent_size=agent_size,
+                                                         task=task).flatten().cpu().numpy(), axis=0)
     summed_up_reward = 0
     for i in range(number_of_future_steps):
-        if not done:
-            # we manually predict the next state
-            # positions for forward model
-            if not position_predicting:
-                # FIXME: not tested
-                last_observation = torch.tensor(last_observation, device=device,
-                                                dtype=torch.float32).detach().clone()
-            forward_model_prediction_normal_distribution = fm_network(last_observation, default_action)
+        # if not done:
+        # we manually predict the next state
+        # positions for forward model
+        if not position_predicting:
+            # FIXME: not tested
+            last_observation = torch.tensor(last_observation, device=device,
+                                            dtype=torch.float32).detach().clone()
+        forward_model_prediction_normal_distribution = fm_network(last_observation, default_action)
 
-            # get reward from forward model prediction or environment
-            if not reward_from_env:
-                rewards = np.expand_dims(forward_model_prediction_normal_distribution.mean[0][
-                                             -1].cpu().detach().numpy(), axis=0)
-                # remove reward from new predicted obs
-                last_observation = torch.clamp(
-                    torch.round(forward_model_prediction_normal_distribution.mean[0][:-1].unsqueeze(dim=0)),
-                    min=0,
-                    max=4)
-            else:
-                _, rewards, done, _ = copied_env.step(default_action)
-                # define state for env
-                # FIXME: only when reward is predicted by the forward model
-                last_observation = np.expand_dims(
-                    get_observation_of_position_and_object_positions(agent_and_object_positions=
-                    forward_model_prediction_normal_distribution.mean[0][:-1].cpu().unsqueeze(
-                        0), observation_height=observation_height,
-                        observation_width=observation_width, agent_size=agent_size, task=task).flatten().cpu().numpy(),
-                    axis=0)
-                # set state in env
-                # environment assumes a numpy array as state
-                copied_env.env_method("set_state", last_observation)
-
-                if position_predicting:
-                    # form whole observation to tensor
-                    last_observation = torch.tensor(last_observation, device=device,
-                                                    dtype=torch.float32).detach().clone()
-                    # form whole observation to positions
-                    last_observation = get_position_and_object_positions_of_observation(last_observation,
-                                                                                        maximum_number_of_objects=maximum_number_of_objects,
-                                                                                        observation_width=observation_width,
-                                                                                        observation_height=observation_height,
-                                                                                        agent_size=agent_size)
+        # get reward from forward model prediction or environment
+        if not reward_from_env:
+            rewards = np.expand_dims(forward_model_prediction_normal_distribution.mean[0][
+                                         -1].cpu().detach().numpy(), axis=0)
+            # remove reward from new predicted obs
+            last_observation = torch.clamp(
+                torch.round(forward_model_prediction_normal_distribution.mean[0][:-1].unsqueeze(dim=0)),
+                min=0,
+                max=4)
+        else:
+            # FIXME: not needed?
+            # _, rewards, done, _ = copied_env.step(default_action)
+            # state: (30,42), collected_objects: [{'x': 16, 'y':43, 'size':2}]
+            # world_config["x_width"] - size + 1
+            x_position_of_agent = int(min(max(agent_size, last_observation[0][0]), observation_width - agent_size + 1))
+            y_position_of_agent = int(last_observation[0][1])
+            collected_objects = []
+            for index in range(2, len(last_observation[0]), 2):
+                if (((last_observation[0][index] == x_position_of_agent - 1)
+                     or (last_observation[0][index] == x_position_of_agent)
+                     or (last_observation[0][index] == x_position_of_agent + 1))
+                        and ((last_observation[0][index + 1] == y_position_of_agent - 1)
+                             or (last_observation[0][index + 1] == y_position_of_agent)
+                             or (last_observation[0][index + 1] == y_position_of_agent + 1))
+                ):
+                    collected_objects.append(
+                        {'x': int(last_observation[0][index]), 'y': int(last_observation[0][index + 1]),
+                         'size': agent_size})
+            rewards, _ = calculate_gaussian_reward(
+                state=last_observation_state.reshape(observation_height, observation_width + 2),
+                collected_objects=collected_objects,
+                agent_size=agent_size,
+                task_type=task_type,
+                current_reward_function="gaussian",
+                x_position_of_agent=x_position_of_agent,
+                y_position_of_agent=y_position_of_agent)
+            # define state for env
+            # FIXME: only when reward is predicted by the forward model
+            # FIXME: get last observation hardcoded:
+            gold_label = get_next_position_observation_moonlander(
+                observations=last_observation,
+                actions=default_action[0],
+                observation_width=observation_width,
+                observation_height=observation_height,
+                agent_size=agent_size,
+                maximum_number_of_objects=maximum_number_of_objects)
+            # form to normal distribution
+            gold_label = torch.distributions.Normal(gold_label, scale=torch.tensor(
+                [[1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.]]))
+            last_observation = gold_label.mean
+            last_observation_state = np.expand_dims(
+                get_observation_of_position_and_object_positions(agent_and_object_positions=
+                                                                 # forward_model_prediction_normal_distribution.mean[
+                                                                 #     0][:-1].cpu().unsqueeze(0),
+                                                                 last_observation,
+                                                                 observation_height=observation_height,
+                                                                 observation_width=observation_width,
+                                                                 agent_size=agent_size,
+                                                                 task=task).flatten().cpu().numpy(),
+                axis=0)
+            # set state in env
+            # environment assumes a numpy array as state
+            # copied_env.env_method("set_state", last_observation)
 
             # normalize reward
             normalized_reward = normalize_rewards(task=task, absolute_reward=rewards)
@@ -401,6 +441,60 @@ def get_position_and_object_positions_of_observation(obs: torch.Tensor,
                     x_y_coordinates.append([x_coordinate, y_coordinate])
                     current_number_of_objects_in_list += 1
 
+            x_y_coordinates_copy = copy.deepcopy(x_y_coordinates)
+            for current_x_coordinate, current_y_coordinate in x_y_coordinates:
+                # check if object coordinate is overlapping with the agent at the same y position
+                if (
+                        (
+                                ((current_x_coordinate - 1) == (first_index_with_one + agent_size - 2)) or
+                                ((current_x_coordinate - 1) == (first_index_with_one + agent_size - 1)) or
+                                ((current_x_coordinate - 1) == (first_index_with_one + agent_size)) or
+                                (current_x_coordinate == (first_index_with_one + agent_size - 2)) or
+                                (current_x_coordinate == (first_index_with_one + agent_size - 1)) or
+                                (current_x_coordinate == (first_index_with_one + agent_size)) or
+                                ((current_x_coordinate + 1) == (first_index_with_one + agent_size - 2)) or
+                                ((current_x_coordinate + 1) == (first_index_with_one + agent_size - 1)) or
+                                ((current_x_coordinate + 1) == (first_index_with_one + agent_size))
+                        )  # and
+                        # (
+                        #         current_y_coordinate == (agent_size - 1)
+                        # )
+                ):
+                    # object is left from agent
+                    if current_x_coordinate < (first_index_with_one + agent_size - 1):
+                        # check if object already started earlier
+                        if obs_element.cpu()[current_x_coordinate - 2] == search_value:
+                            x_y_coordinates_copy.remove([current_x_coordinate, current_y_coordinate])
+                            current_number_of_objects_in_list -= 1
+                    elif current_x_coordinate > (first_index_with_one + agent_size - 1):
+                        if obs_element.cpu()[current_x_coordinate + 2] == search_value:
+                            x_y_coordinates_copy.remove([current_x_coordinate, current_y_coordinate])
+                            current_number_of_objects_in_list -= 1
+
+                # check if object coordinate is overlapping with the agent at the same x position
+                if (
+                        (
+                                ((current_y_coordinate - 1) == (agent_size - 2)) or
+                                ((current_y_coordinate - 1) == (agent_size - 1)) or
+                                ((current_y_coordinate - 1) == agent_size) or
+                                (current_y_coordinate == (agent_size - 2)) or
+                                (current_y_coordinate == (agent_size - 1)) or
+                                (current_y_coordinate == agent_size) or
+                                ((current_y_coordinate + 1) == (agent_size - 2)) or
+                                ((current_y_coordinate + 1) == (agent_size - 1)) or
+                                ((current_y_coordinate + 1) == agent_size)
+                        ) and
+                        (
+                                current_x_coordinate == (first_index_with_one + agent_size - 1)
+                        )
+                ):
+                    # object is below agent
+                    if obs_element.cpu()[
+                        ((current_y_coordinate + 2) * (observation_width + 2)) + current_x_coordinate] == search_value:
+                        x_y_coordinates_copy.remove([current_x_coordinate, current_y_coordinate])
+                        current_number_of_objects_in_list -= 1
+
+            x_y_coordinates = x_y_coordinates_copy
             # add zeros to the list if we have not enough objects
             while current_number_of_objects_in_list < maximum_number_of_objects:
                 x_y_coordinates.append([0, 0])
@@ -847,7 +941,10 @@ def normalize_rewards(task: str, absolute_reward) -> float:
         # we choose to clip the smallest 1% -> which is a clipping from -100 to -3 -> clip to -3
         if absolute_reward < -3:
             absolute_reward = np.array([-3])
-        normalized_reward = (absolute_reward - (-3)) / (10 - (-3))
+        # normalized_reward = (absolute_reward - (-3)) / (10 - (-3))
+        # FIXME: try different normalization!!!
+        # reward between 0 and 0.5
+        normalized_reward = (((0.5 - 0) * (absolute_reward - (-3))) / (10 - (-3))) + 0
     elif task == "collect":
         # normalize reward with MinMaxScaler: (reward - min) / (max - min)
         # the maximum reward is ~350 -> when the agent is completely surrounded by coins
@@ -860,7 +957,10 @@ def normalize_rewards(task: str, absolute_reward) -> float:
         # it is possible that the reward is slightly negative (e.g. -0.0000001), which breaks our normalization
         elif absolute_reward < 0:
             absolute_reward = np.array([0])
-        normalized_reward = (absolute_reward - 0) / (62 - 0)
+        # normalized_reward = (absolute_reward - 0) / (62 - 0)
+        # FIXME: try different normalization!!!
+        # reward between 0 and 0.5
+        normalized_reward = (((1 - 0.5) * (absolute_reward - 0)) / (62 - 0)) + 0.5
     else:
         raise ValueError("Task {} not implemented".format(task))
 

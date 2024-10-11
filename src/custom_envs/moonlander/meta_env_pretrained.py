@@ -30,7 +30,7 @@ class MetaEnvPretrained(gym.Env):
 
     def __init__(self, dodge_best_model_name: str, collect_best_model_name: str,
                  dodge_list_of_object_dict_lists: List[Dict] = None,
-                 collect_list_of_object_dict_lists: List[Dict] = None):
+                 collect_list_of_object_dict_lists: List[Dict] = None, render_mode=None):
         self.ROOT_DIR = "."
         config_path_dodge_asteroids = os.path.join(os.path.dirname(os.path.realpath(__file__)), "standard_config.yaml")
         config_path_collect_asteroids = os.path.join(os.path.dirname(os.path.realpath(__file__)),
@@ -94,12 +94,15 @@ class MetaEnvPretrained(gym.Env):
         # logger
         tmp_path = "/tmp/sb3_log/"
         self.logger = configure(tmp_path, ["stdout", "csv"])
+        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        self.render_mode = render_mode
 
         # Load the trained agents
         # FIXME: this is an ugly hack to load the trained agents
         with open(
-                os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                             f"../../../policies/{dodge_best_model_name}"), "rb"
+                # os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                #              f"../../../policies/{dodge_best_model_name}"), "rb"
+                f"/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/policies/{dodge_best_model_name}", "rb"
         ) as file:
             print("start loading agents", file)
             self.trained_dodge_asteroids = CLEANPPOFM.load(path=file,
@@ -107,8 +110,9 @@ class MetaEnvPretrained(gym.Env):
                                                                             n_envs=1))
             self.trained_dodge_asteroids.set_logger(logger=self.logger)
         with open(
-                os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                             f"../../../policies/{collect_best_model_name}"), "rb"
+                # os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                #              f"../../../policies/{collect_best_model_name}"), "rb"
+                f"/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/policies/{collect_best_model_name}", "rb"
         ) as file:
             # same model cannot be loaded twice -> copy does also not work
             self.trained_collect_asteroids = CLEANPPOFM.load(path=file,
@@ -241,7 +245,8 @@ class MetaEnvPretrained(gym.Env):
                                                            [[1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,
                                                              1., 1., 1., 1., 1., 1., 1., 1.]]))
         # perform action & SoC calculation & reward estimation corrected by SoC
-        new_state, active_reward, active_is_done, active_info, active_prediction_error, active_difficulty, active_SoC, active_reward_estimation_corrected_by_SoC, input_noise = active_model.step_in_env(
+        (new_state, active_reward, active_is_done, active_info, active_prediction_error, active_difficulty, active_SoC,
+         active_reward_estimation_corrected_by_SoC, input_noise) = active_model.step_in_env(
             actions=torch.tensor(action_of_task_agent).float(),
             # forward_normal=active_belief_state_normal_distribution)
             forward_normal=active_gold_label)
@@ -422,10 +427,11 @@ class MetaEnvPretrained(gym.Env):
                 "prediction_error": active_prediction_error, "difficulty": active_difficulty,
                 "SoC_dodge": self.SoC_dodge, "SoC_collect": self.SoC_collect}
 
-        if info_dodge[0]["number_of_crashed_or_collected_objects"] > 0:
-            reward_dodge -= 1
-        if info_collect[0]["number_of_crashed_or_collected_objects"] > 0:
-            reward_collect += 1
+        # FIXME: not needed?
+        # if info_dodge[0]["number_of_crashed_or_collected_objects"] > 0:
+        #     reward_dodge -= 1
+        # if info_collect[0]["number_of_crashed_or_collected_objects"] > 0:
+        #     reward_collect += 1
         return (
             self.state,
             # active_reward_estimation_corrected_by_SoC + inactive_reward_estimation_corrected_by_SoC,

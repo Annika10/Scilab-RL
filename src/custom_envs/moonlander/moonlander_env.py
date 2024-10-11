@@ -9,7 +9,6 @@ import random as rnd
 from typing import List, Dict
 
 import custom_envs.moonlander.helper_functions as hlp
-import cv2
 import numpy as np
 import torch
 import yaml
@@ -501,7 +500,19 @@ class MoonlanderWorldEnv(Env):
                 actual_reward = reward_simple
 
             ##### GAUSSIAN REWARD #####
-            reward_gaussian = self.calculate_gaussian_reward(collected_objects=collected_objects)
+            reward_gaussian, self.object_dict_list = hlp.calculate_gaussian_reward(state=self.state,
+                                                                                   collected_objects=collected_objects,
+                                                                                   agent_size=self.config["agent"][
+                                                                                       "size"],
+                                                                                   task_type=
+                                                                                   self.config["world"]["objects"][
+                                                                                       "type"],
+                                                                                   object_dict_list=self.object_dict_list,
+                                                                                   current_reward_function=self.reward_function,
+                                                                                   x_position_of_agent=self.x_position_of_agent,
+                                                                                   y_position_of_agent=self.y_position_of_agent,
+                                                                                   no_crashes=self.no_crashes)
+            self.gaussian_reward_info_per_step = reward_gaussian
             if self.reward_function == "gaussian":
                 actual_reward = reward_gaussian
 
@@ -557,187 +568,6 @@ class MoonlanderWorldEnv(Env):
                 current_simple_reward = 0
 
         return current_simple_reward
-
-    def calculate_gaussian_reward(self, collected_objects: list[dict]) -> int:
-        current_reward_gaussian = 0
-        # remove agent from state
-        blurred_state = copy.deepcopy(self.state)
-        blurred_state[blurred_state == 1] = 0
-        # handle drift as wall tiles
-        blurred_state[blurred_state == -5] = -1
-        # if no crashes in walls (and obstacles) are possible, remove walls from state
-        if self.no_crashes:
-            blurred_state[blurred_state == -1] = 0
-        # replace walls (-1)(maybe already removed through no crashes) with the highest value (255)
-        blurred_state[blurred_state == -1] = 255
-
-        range_of_agent = range(
-            -(self.config["agent"]["size"] - 1),
-            self.config["agent"]["size"]
-        )
-
-        if len(collected_objects) > 0:
-            for obj in collected_objects:
-                # Prevent coins from being collected multiple times
-                if self.config["world"]["objects"]["type"] == "coin" and self.reward_function == "gaussian":
-                    self.object_dict_list.remove(obj)
-
-                # find positions where agent is on object --> only last row of agent is possible
-                x_positions_of_agent = []
-                y_positions_of_agent = []
-                for index in range_of_agent:
-                    x_positions_of_agent.append(
-                        self.x_position_of_agent + index
-                    )
-                    y_positions_of_agent.append(
-                        self.y_position_of_agent + index
-                    )
-                agent_positions = [(x_positions_of_agent[index_1], y_positions_of_agent[index_2]) for index_2 in
-                                   range(len(y_positions_of_agent)) for index_1 in
-                                   range(len(x_positions_of_agent))]
-
-                range_of_object = range(
-                    -(math.floor(obj["size"] / 2)),
-                    (math.floor(obj["size"] / 2) + 1),
-                )
-                x_positions_of_object = []
-                y_positions_of_object = []
-                for index in range_of_object:
-                    x_positions_of_object.append(obj["x"] + index)
-                    y_positions_of_object.append(obj["y"] + index)
-                object_positions = [(x_positions_of_object[index_1], y_positions_of_object[index_2]) for index_2 in
-                                    range(len(y_positions_of_object)) for index_1 in
-                                    range(len(x_positions_of_object))]
-
-                positions_where_agent_is_on_object = list(
-                    set(agent_positions).intersection(object_positions)
-                )
-                # FIXME: what about multiple objects???
-
-                if self.config["world"]["objects"]["type"] == "coin":
-                    for pos in positions_where_agent_is_on_object:
-                        # replace values of intersection of agent and coin with 2
-                        blurred_state[pos[1] - self.y_position_of_agent + 1, pos[0]] = 2
-                # obstacle
-                else:
-                    for pos in positions_where_agent_is_on_object:
-                        # replace values of intersection of agent and obstacle with 3
-                        blurred_state[pos[1] - self.y_position_of_agent + 1, pos[0]] = 3
-
-        if self.config["world"]["objects"]["type"] == "coin":
-            # replace nothing (0) with middle value (127)
-            blurred_state[blurred_state == 0] = 127
-            # replace coins (2) with the lowest value (0)
-            blurred_state[blurred_state == 2] = 0
-            # replace collect (-10) with the lowest value (0)
-            # -10 here not possible for crashes, because it would already handled above
-            blurred_state[blurred_state == -10] = 0
-        else:
-            # replace obstacles (3) with the highest value (255)
-            blurred_state[blurred_state == 3] = 255
-            # replace crash (-10) with the highest value (255)
-            # -10 here not possible for crashes, because it would already handled above
-            blurred_state[blurred_state == -10] = 255
-
-        # apply gaussian filter (7x7)
-        # gymnasium expects an int64 numpy array, but gaussian blur only works with int16
-        blurred_state = cv2.GaussianBlur(blurred_state.astype(np.int16), (7, 7), 0)
-
-        # get values of each pixel of current agent position
-        values_of_agent_position = []
-        # rows
-        for i in range(2 * self.config["agent"]["size"] - 1):
-            # columns
-            if len(range_of_agent) == 0:
-                values_of_agent_position.append(
-                    blurred_state[i][self.x_position_of_agent]
-                )
-            else:
-                for j in range_of_agent:
-                    values_of_agent_position.append(
-                        blurred_state[i][self.x_position_of_agent - j]
-                    )
-
-        for value in values_of_agent_position:
-            current_reward_gaussian += abs(value - 255)
-        # normalize reward
-        if self.config["world"]["objects"]["type"] == "coin":
-            # agent size 1 (1x1)
-            # reward when no coin is near: 128 --> should be 0
-            # lowest reward possible when collecting a coin: 146 --> should be 500
-            if self.config["agent"]["size"] == 1:
-                normalized_reward = ((current_reward_gaussian - 128) / 0.036) / 10
-            # agent size 2 (3x3)
-            # reward when no coin is near: 128*9=1152 --> should be 0
-            # lowest reward possible when collecting a coin: 1309 --> should be 500
-            # the function for this is: f(x) = 0.314x + 1152
-            # we calculate the corresponding normalized reward x for the current reward f(x)
-            # for reward of 10 when no coin is near:
-            # normalized_reward = ((reward - 1152) / 0.314)/10
-            elif self.config["agent"]["size"] == 2:
-                normalized_reward = ((current_reward_gaussian - 1152) / 0.314) / 10
-            # agent size 3 (5x5)
-            # reward when no coin is near: 3200 -->  shouldbe 0
-            # lowest reward possible when collecting a coin: 3373 --> should be 500
-            elif self.config["agent"]["size"] == 3:
-                normalized_reward = ((current_reward_gaussian - 3200) / 0.346) / 10
-            # agent size 4 (7x7)
-            # reward when no coin is near: 6272 --> should be 0
-            # lowest reward possible when collecting a coin: 6445 --> should be 500
-            elif self.config["agent"]["size"] == 4:
-                normalized_reward = ((current_reward_gaussian - 6272) / 0.346) / 10
-            # agent size 5 (9x9)
-            # reward when no coin is near: 10368 --> should be 0
-            # lowest reward possible when collecting a coin: 10541 --> should be 500
-            elif self.config["agent"]["size"] == 5:
-                normalized_reward = ((current_reward_gaussian - 10368) / 0.346) / 10
-            # other sizes:
-            # when an agent "collides" with the coin on just one corner the reward is always 127, 126, 126, 124,
-            #                                                                                126, 124, 121, 116,
-            #                                                                                126, 121, 111, 98,
-            #                                                                                124, 116, 98, 75
-            # in the colliding corner, while the other values in the agent position are 127
-            else:
-                agent_size = self.config["agent"]["size"]
-                reward_no_coin = agent_size * 128  # reward when no coin is near
-                normalized_reward = ((current_reward_gaussian - reward_no_coin) / 0.346) / 10
-        else:
-            # agent size 1 (1x1)
-            # biggest reward possible when near an obstacle: 231 --> should be 0
-            # biggest reward possible when not near an obstacle: 255 --> should be 10
-            if self.config["agent"]["size"] == 1:
-                normalized_reward = (current_reward_gaussian - 231) / 2.4
-            # agent size 2 (3x3)
-            # we want the same distance as before 10 for successful step, 0 if near an obstacle (obstacle task)
-            # the biggest reward possible when near an obstacle is 2219 --> this should be 0
-            # the highest reward possible when not near an obstacle is 255*9=2295 --> this should be 10
-            # the function for this is: f(x) = 7.6x + 2219
-            # we calculate the corresponding normalized reward x for the current reward f(x)
-            elif self.config["agent"]["size"] == 2:
-                normalized_reward = (current_reward_gaussian - 2219) / 7.6
-            # agent size 3 (5x5)
-            # biggest reward possible when near an obstacle: 6303 --> should be 0
-            # biggest reward possible when not near an obstacle: 255*25=6375 --> should be 10
-            elif self.config["agent"]["size"] == 3:
-                normalized_reward = (current_reward_gaussian - 6303) / 7.2
-            # agent size 4 (7x7)
-            # biggest reward possible when near an obstacle: 12423 --> should be 0
-            # biggest reward possible when not near an obstacle: 255*49=12495 --> should be 10
-            elif self.config["agent"]["size"] == 4:
-                normalized_reward = (current_reward_gaussian - 12423) / 7.2
-            # agent size 5 (9x9)
-            # biggest reward possible when near an obstacle: 20583 --> should be 0
-            # biggest reward possible when not near an obstacle: 255*81=20655 --> should be 10
-            elif self.config["agent"]["size"] == 5:
-                normalized_reward = (current_reward_gaussian - 20583) / 7.2
-            # other sizes
-            else:
-                agent_size = self.config["agent"]["size"]
-                agent_size_matrix = (agent_size * 2 - 1) * (agent_size * 2 - 1)  # e.g. agent size = 4 --> 7x7=49
-                smallest_reward_obstacle = 2223 + (agent_size_matrix - 9) * 255  # reward when near an obstacle
-                normalized_reward = (current_reward_gaussian - smallest_reward_obstacle) / 7.2
-        self.gaussian_reward_info_per_step = int(normalized_reward)
-        return int(normalized_reward)
 
     def calculate_pos_neg_reward(self, collected_objects: list[dict]) -> int:
         current_reward_pos_neg = 0

@@ -706,12 +706,16 @@ class CLEANPPOFM:
         # normalize actual reward
         rewards_normalized = normalize_rewards(task=task, absolute_reward=rewards)
         # add normalized reward to summed up rewards + normalize by mean
-        summed_up_rewards_default = (rewards_normalized + summed_up_rewards_default) / 2
+        # FIXME: changed this!!!
+        # summed_up_rewards_default = (rewards_normalized + summed_up_rewards_default) / 2
+
         if self.normalized_rewards:
             rewards = rewards_normalized
 
         ##### CALCULATE REWARD ESTIMATION FOR DEFAULT TRAJECTORY CORRECTED BY SOC #####
-        reward_estimation = (summed_up_rewards_default + self.soc) / 2
+        # FIXME: changed this!!!
+        # reward_estimation = (summed_up_rewards_default + self.soc) / 2
+        reward_estimation = (rewards_normalized + self.soc) / 2
 
         # input noise only for debugging
         return new_obs, rewards, dones, infos, prediction_error, difficulty, self.soc, reward_estimation, input_noise
