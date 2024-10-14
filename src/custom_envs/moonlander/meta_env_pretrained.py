@@ -100,9 +100,9 @@ class MetaEnvPretrained(gym.Env):
         # Load the trained agents
         # FIXME: this is an ugly hack to load the trained agents
         with open(
-                # os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                #              f"../../../policies/{dodge_best_model_name}"), "rb"
-                f"/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/policies/{dodge_best_model_name}", "rb"
+                os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                             f"../../../policies/{dodge_best_model_name}"), "rb"
+                # f"/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/policies/{dodge_best_model_name}", "rb"
         ) as file:
             print("start loading agents", file)
             self.trained_dodge_asteroids = CLEANPPOFM.load(path=file,
@@ -110,9 +110,9 @@ class MetaEnvPretrained(gym.Env):
                                                                             n_envs=1))
             self.trained_dodge_asteroids.set_logger(logger=self.logger)
         with open(
-                # os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                #              f"../../../policies/{collect_best_model_name}"), "rb"
-                f"/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/policies/{collect_best_model_name}", "rb"
+                os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                             f"../../../policies/{collect_best_model_name}"), "rb"
+                # f"/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/policies/{collect_best_model_name}", "rb"
         ) as file:
             # same model cannot be loaded twice -> copy does also not work
             self.trained_collect_asteroids = CLEANPPOFM.load(path=file,
