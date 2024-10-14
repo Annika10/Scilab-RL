@@ -319,7 +319,8 @@ class MetaEnvPretrained(gym.Env):
         else:
             self.counter_without_switch = 0
             self.last_action = action
-        inactive_summed_up_rewards = min(max(0, inactive_summed_up_rewards - (self.counter_without_switch * 0.1)), 1)
+        # FIXME: put in?
+        # inactive_summed_up_rewards = min(max(0, inactive_summed_up_rewards - (self.counter_without_switch * 0.1)), 1)
         # reward estimation corrected by SoC
         inactive_reward_estimation_corrected_by_SoC = (inactive_summed_up_rewards + inactive_SoC) / 2
 
@@ -328,11 +329,13 @@ class MetaEnvPretrained(gym.Env):
                 # dodge task
                 self.state_of_dodge_asteroids = new_state
                 info_dodge = active_info
-                reward_dodge = active_reward_estimation_corrected_by_SoC
+                reward_dodge = active_reward
+                # reward_dodge = active_reward_estimation_corrected_by_SoC
                 self.SoC_dodge = active_SoC
                 self.state_of_collect_asteroids = belief_state
                 info_collect = inactive_info
-                reward_collect = inactive_reward_estimation_corrected_by_SoC
+                # reward_collect = inactive_reward_estimation_corrected_by_SoC
+                reward_collect = inactive_summed_up_rewards
                 self.SoC_collect = inactive_SoC
                 # for debugging
                 last_dodge_position = int(active_agent_and_object_positions_tensor[0][0])
@@ -364,11 +367,13 @@ class MetaEnvPretrained(gym.Env):
                 # collect task
                 self.state_of_dodge_asteroids = belief_state
                 info_dodge = inactive_info
-                reward_dodge = inactive_reward_estimation_corrected_by_SoC
+                # reward_dodge = inactive_reward_estimation_corrected_by_SoC
+                reward_dodge = inactive_summed_up_rewards
                 self.SoC_dodge = inactive_SoC
                 self.state_of_collect_asteroids = new_state
                 info_collect = active_info
-                reward_collect = active_reward_estimation_corrected_by_SoC
+                # reward_collect = active_reward_estimation_corrected_by_SoC
+                reward_collect = active_reward
                 self.SoC_collect = active_SoC
                 # for debugging
                 last_dodge_position = int(inactive_agent_and_object_positions_tensor[0][0])
