@@ -320,7 +320,8 @@ class MetaEnvPretrained(gym.Env):
             self.counter_without_switch = 0
             self.last_action = action
         # FIXME: put in?
-        inactive_summed_up_rewards = min(max(0, inactive_summed_up_rewards - (self.counter_without_switch * 0.1)), 1)
+        # not needed because already introduced by inactive SoC
+        # inactive_summed_up_rewards = min(max(0, inactive_summed_up_rewards - (self.counter_without_switch * 0.1)), 1)
         # reward estimation corrected by SoC
         inactive_reward_estimation_corrected_by_SoC = (inactive_summed_up_rewards + inactive_SoC) / 2
 
