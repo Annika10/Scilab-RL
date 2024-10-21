@@ -92,42 +92,6 @@ def get_reward_estimation_of_forward_model(fm_network, obs: torch.Tensor,
     return reward_estimation
 
 
-# FIXME: what is about position predicting and not?
-def get_reward_of_environment(env, env_name: str, number_of_future_steps: int = 10):
-    """
-    Calculate the reward by using the reward model of the environment.
-    Args:
-        env: environment
-        env_name: name of the current environment
-        rewards: reward of last step
-        prediction_error: error between predicted and last actual observation
-        number_of_future_steps: number of future steps to predict
-
-    Returns:
-        summed up rewards
-    """
-    # default action is stay at same position
-    if env_name == "MoonlanderWorldEnv":
-        default_action = torch.Tensor([[1]])
-    # using reward model of other envs is not implemented by now
-    else:
-        raise ValueError(
-            "The current environment does not support the reward calculation through the actual environment.")
-
-    copied_env = copy.deepcopy(env)
-    # remove possible input noise in the environment
-    copied_env.env_method("set_input_noise", 0)
-    ##### CALCULATE NEXT REWARDS THROUGH ENVIRONMENT #####
-    summed_up_reward = 0
-    for i in range(number_of_future_steps):
-        # FIXME: what happens when the environment is done?
-        _, rewards, _, _ = copied_env.step(default_action)
-        # add new reward to last reward
-        summed_up_reward += rewards
-
-    return summed_up_reward
-
-
 def get_summed_up_reward_of_env_or_fm_with_predicted_states_of_fm(env, fm_network, last_observation: torch.Tensor,
                                                                   reward_from_env: bool,
                                                                   position_predicting: bool, env_name: str,
@@ -206,34 +170,13 @@ def get_summed_up_reward_of_env_or_fm_with_predicted_states_of_fm(env, fm_networ
             last_observation = torch.clamp(
                 torch.round(forward_model_prediction_normal_distribution.mean[0][:-1].unsqueeze(dim=0)),
                 min=0,
+                # FIXME: why 4?
                 max=4)
         else:
             # FIXME: not needed?
             # _, rewards, done, _ = copied_env.step(default_action)
             # state: (30,42), collected_objects: [{'x': 16, 'y':43, 'size':2}]
             # world_config["x_width"] - size + 1
-            x_position_of_agent = int(min(max(agent_size, last_observation[0][0]), observation_width - agent_size + 1))
-            y_position_of_agent = int(last_observation[0][1])
-            collected_objects = []
-            for index in range(2, len(last_observation[0]), 2):
-                if (((last_observation[0][index] == x_position_of_agent - 1)
-                     or (last_observation[0][index] == x_position_of_agent)
-                     or (last_observation[0][index] == x_position_of_agent + 1))
-                        and ((last_observation[0][index + 1] == y_position_of_agent - 1)
-                             or (last_observation[0][index + 1] == y_position_of_agent)
-                             or (last_observation[0][index + 1] == y_position_of_agent + 1))
-                ):
-                    collected_objects.append(
-                        {'x': int(last_observation[0][index]), 'y': int(last_observation[0][index + 1]),
-                         'size': agent_size})
-            rewards, _ = calculate_gaussian_reward(
-                state=last_observation_state.reshape(observation_height, observation_width + 2),
-                collected_objects=collected_objects,
-                agent_size=agent_size,
-                task_type=task_type,
-                current_reward_function="gaussian",
-                x_position_of_agent=x_position_of_agent,
-                y_position_of_agent=y_position_of_agent)
             # define state for env
             # FIXME: only when reward is predicted by the forward model
             # FIXME: get last observation hardcoded:
@@ -258,13 +201,37 @@ def get_summed_up_reward_of_env_or_fm_with_predicted_states_of_fm(env, fm_networ
                                                                  agent_size=agent_size,
                                                                  task=task).flatten().cpu().numpy(),
                 axis=0)
+
+            x_position_of_agent = int(min(max(agent_size, last_observation[0][0]), observation_width - agent_size + 1))
+            y_position_of_agent = int(last_observation[0][1])
+            collected_objects = []
+            for index in range(2, len(last_observation[0]), 2):
+                if (((last_observation[0][index] == x_position_of_agent - 1)
+                     or (last_observation[0][index] == x_position_of_agent)
+                     or (last_observation[0][index] == x_position_of_agent + 1))
+                        and ((last_observation[0][index + 1] == y_position_of_agent - 1)
+                             or (last_observation[0][index + 1] == y_position_of_agent)
+                             or (last_observation[0][index + 1] == y_position_of_agent + 1))
+                ):
+                    collected_objects.append(
+                        {'x': int(last_observation[0][index]), 'y': int(last_observation[0][index + 1]),
+                         'size': agent_size})
+            rewards, _ = calculate_gaussian_reward(
+                state=last_observation_state.reshape(observation_height, observation_width + 2),
+                collected_objects=collected_objects,
+                agent_size=agent_size,
+                task_type=task_type,
+                current_reward_function="gaussian",
+                x_position_of_agent=x_position_of_agent,
+                y_position_of_agent=y_position_of_agent)
+
             # set state in env
             # environment assumes a numpy array as state
             # copied_env.env_method("set_state", last_observation)
 
-            # normalize reward
-            normalized_reward = normalize_rewards(task=task, absolute_reward=rewards)
-            summed_up_reward += normalized_reward
+        # normalize reward
+        normalized_reward = normalize_rewards(task=task, absolute_reward=rewards)
+        summed_up_reward += normalized_reward
 
     # normalize with mean of summed_up_reward
     return summed_up_reward / number_of_future_steps
@@ -324,44 +291,6 @@ def reward_estimation(fm_network, new_obs: np.array, env_name: str, rewards, pre
         prediction_error=prediction_error)
 
     return reward_with_future_reward_estimation_corrective
-
-
-def reward_calculation(env, env_name: str, rewards, prediction_error: float, number_of_future_steps: int = 10):
-    """
-    Calculate the reward by using the reward model of the environment.
-    Args:
-        env: environment
-        env_name: name of the current environment
-        rewards: reward of last step
-        prediction_error: error between predicted and last actual observation
-        number_of_future_steps: number of future steps to predict
-
-    Returns:
-        reward with future reward calculation corrective
-    """
-    # default action is stay at same position
-    if env_name == "MoonlanderWorldEnv":
-        default_action = torch.Tensor([[1]])
-    # using reward model of other envs is not implemented by now
-    else:
-        raise ValueError(
-            "The current environment does not support the reward calculation through the actual environment.")
-
-    copied_env = copy.deepcopy(env)
-    # remove possible input noise in the environment
-    copied_env.env_method("set_input_noise", 0)
-    ##### CALCULATE NEXT REWARDS THROUGH ENVIRONMENT #####
-    summed_up_reward = 0
-    for i in range(number_of_future_steps):
-        # FIXME: what happens when the environment is done?
-        _, rewards, _, _ = copied_env.step(default_action)
-        # add new reward to last reward
-        summed_up_reward += rewards
-
-    reward_with_future_reward_corrective = get_reward_with_future_reward_estimation_corrective(
-        rewards=rewards, future_reward_estimation=summed_up_reward,
-        prediction_error=prediction_error)
-    return reward_with_future_reward_corrective
 
 
 def get_position_and_object_positions_of_observation(obs: torch.Tensor,
@@ -774,7 +703,7 @@ def calculate_prediction_error(env_name: str, env, next_obs, forward_model_predi
 
 def calculate_difficulty(env, policy, fm_network, logger, env_name: str,
                          prediction_error: float, position_predicting: bool, maximum_number_of_objects: int = 5,
-                         reward_predicting: bool = False) -> tuple[float, float]:
+                         reward_predicting: bool = False, use_reward_of_env: bool = False) -> tuple[float, float]:
     """
     Calculate the difficulty of the environment by simulating the default trajectory
     and the "optimal" trajectory the agent would choose.
@@ -788,6 +717,7 @@ def calculate_difficulty(env, policy, fm_network, logger, env_name: str,
         position_predicting: if the forward model is predicting the position or actual observation
         maximum_number_of_objects: the number of objects that are considered in the forward model prediction
         reward_predicting: if the forward model is predicting the reward or the environment
+        use_reward_of_env: if the reward of the environment should be used
     Returns:
         difficulty between 0 and 1
         summed up rewards when executing the default action (trajectory length is calculated by prediction error)
@@ -800,6 +730,10 @@ def calculate_difficulty(env, policy, fm_network, logger, env_name: str,
         raise ValueError(
             "The current environment does not support the difficulty calculation.")
     task = env.env_method("get_wrapper_attr", "task")[0]
+    if task == "dodge":
+        task_type = "obstacle"
+    elif task == "collect":
+        task_type = "coin"
 
     # calculate the trajectory lengths through the prediction error
     # we decide that the trajectory length is half the observation size of the environment when the prediction error is 0
@@ -808,8 +742,8 @@ def calculate_difficulty(env, policy, fm_network, logger, env_name: str,
     agent_size = env.env_method("get_wrapper_attr", "size")[0]
     trajectory_length = - (observation_height / 2) * prediction_error + observation_height / 2
 
-    last_observation_default = np.expand_dims(env.env_method("get_wrapper_attr", "state")[0].flatten(), axis=0)
-    last_observation_optimal = copy.deepcopy(last_observation_default)
+    last_observation_state_default = np.expand_dims(env.env_method("get_wrapper_attr", "state")[0].flatten(), axis=0)
+    last_observation_state_optimal = copy.deepcopy(last_observation_state_default)
 
     # simulate the default and optimal trajectory
     copied_env_default = copy.deepcopy(env)
@@ -829,37 +763,102 @@ def calculate_difficulty(env, policy, fm_network, logger, env_name: str,
     for i in range(max(round(trajectory_length), 1)):
         if not done_default:
             # we manually predict the next state
+            # FIXME: don't want to use the forward model prediction here?
             # positions for forward model
-            if position_predicting:
-                last_observation_default = get_position_and_object_positions_of_observation(
-                    torch.tensor(last_observation_default, device=device),
-                    maximum_number_of_objects=maximum_number_of_objects,
-                    observation_width=observation_width, observation_height=observation_height, agent_size=agent_size)
-            else:
-                last_observation_default = torch.tensor(last_observation_default, device=device,
-                                                        dtype=torch.float32).detach().clone()
-            forward_model_prediction_normal_distribution_default = fm_network(last_observation_default, default_action)
+            # if position_predicting:
+            #     last_observation_default = get_position_and_object_positions_of_observation(
+            #         torch.tensor(last_observation_default, device=device),
+            #         maximum_number_of_objects=maximum_number_of_objects,
+            #         observation_width=observation_width, observation_height=observation_height, agent_size=agent_size)
+            # else:
+            #     last_observation_default = torch.tensor(last_observation_default, device=device,
+            #                                             dtype=torch.float32).detach().clone()
+
+            # forward_model_prediction_normal_distribution_default = fm_network(last_observation_default, default_action)
+
+            # get positions
+            last_observation_default = get_position_and_object_positions_of_observation(
+                torch.tensor(last_observation_state_default, device=device),
+                maximum_number_of_objects=maximum_number_of_objects,
+                observation_width=observation_width, observation_height=observation_height, agent_size=agent_size)
+            # get next positions for new step with default action
+            last_observation_default = get_next_position_observation_moonlander(
+                observations=last_observation_default,
+                actions=default_action[0],
+                observation_width=observation_width,
+                observation_height=observation_height,
+                agent_size=agent_size,
+                maximum_number_of_objects=maximum_number_of_objects)
 
             # get reward from forward model prediction or environment
-            if reward_predicting:
-                # state for env
-                last_observation_default = np.expand_dims(
-                    get_observation_of_position_and_object_positions(agent_and_object_positions=
-                    forward_model_prediction_normal_distribution_default.mean[0][:-1].cpu().unsqueeze(
-                        0), observation_height=observation_height,
-                        observation_width=observation_width, agent_size=agent_size, task=task).flatten().cpu().numpy(),
-                    axis=0)
-                rewards_default = np.expand_dims(forward_model_prediction_normal_distribution_default.mean[0][
-                                                     -1].cpu().detach().numpy(), axis=0)
-            else:
-                # state for env
-                last_observation_default = np.expand_dims(
-                    get_observation_of_position_and_object_positions(agent_and_object_positions=
-                    forward_model_prediction_normal_distribution_default.mean[0].cpu().unsqueeze(
-                        0), observation_height=observation_height,
-                        observation_width=observation_width, agent_size=agent_size, task=task).flatten().cpu().numpy(),
-                    axis=0)
-                _, rewards_default, done_default, _ = copied_env_default.step(default_action)
+            # if reward_predicting and not use_reward_of_env:
+            #     # state for env
+            #     last_observation_default = np.expand_dims(
+            #         get_observation_of_position_and_object_positions(agent_and_object_positions=
+            #         forward_model_prediction_normal_distribution_default.mean[0][:-1].cpu().unsqueeze(
+            #             0), observation_height=observation_height,
+            #             observation_width=observation_width, agent_size=agent_size, task=task).flatten().cpu().numpy(),
+            #         axis=0)
+            #     rewards_default = np.expand_dims(forward_model_prediction_normal_distribution_default.mean[0][
+            #                                          -1].cpu().detach().numpy(), axis=0)
+            # else:
+            # _, rewards_default, done_default, _ = copied_env_default.step(default_action)
+
+            x_position_of_agent = int(
+                min(max(agent_size, last_observation_default[0][0]), observation_width - agent_size + 1))
+            y_position_of_agent = int(last_observation_default[0][1])
+
+            collected_objects = []
+            for index in range(2, len(last_observation_default[0]), 2):
+                if not (last_observation_default[0][index] == 0 and last_observation_default[0][index + 1] == 0):
+
+                    if (
+                            (
+                                    ((last_observation_default[0][index] - 1) == (x_position_of_agent - 1))
+                                    or ((last_observation_default[0][index] - 1) == x_position_of_agent)
+                                    or ((last_observation_default[0][index] - 1) == (x_position_of_agent + 1))
+                                    or (last_observation_default[0][index] == (x_position_of_agent - 1))
+                                    or (last_observation_default[0][index] == x_position_of_agent)
+                                    or (last_observation_default[0][index] == (x_position_of_agent + 1))
+                                    or ((last_observation_default[0][index] + 1) == (x_position_of_agent - 1))
+                                    or ((last_observation_default[0][index] + 1) == x_position_of_agent)
+                                    or ((last_observation_default[0][index] + 1) == (x_position_of_agent + 1))
+                            )
+                            and
+                            (
+                                    ((last_observation_default[0][index + 1] - 1) == (y_position_of_agent - 1))
+                                    or ((last_observation_default[0][index + 1] - 1) == y_position_of_agent)
+                                    or ((last_observation_default[0][index + 1] - 1) == (y_position_of_agent + 1))
+                                    or (last_observation_default[0][index + 1] == (y_position_of_agent - 1))
+                                    or (last_observation_default[0][index + 1] == y_position_of_agent)
+                                    or (last_observation_default[0][index + 1] == (y_position_of_agent + 1))
+                                    or ((last_observation_default[0][index + 1] + 1) == (y_position_of_agent - 1))
+                                    or ((last_observation_default[0][index + 1] + 1) == y_position_of_agent)
+                                    or ((last_observation_default[0][index + 1] + 1) == (y_position_of_agent + 1))
+                            )
+                    ):
+                        collected_objects.append(
+                            {'x': int(last_observation_default[0][index]),
+                             'y': int(last_observation_default[0][index + 1]),
+                             'size': agent_size})
+
+            # state for env
+            last_observation_state_default = np.expand_dims(
+                get_observation_of_position_and_object_positions(agent_and_object_positions=last_observation_default,
+                                                                 observation_height=observation_height,
+                                                                 observation_width=observation_width,
+                                                                 agent_size=agent_size,
+                                                                 task=task).flatten().cpu().numpy(),
+                axis=0)
+            # calculate reward
+            rewards_default, _ = calculate_gaussian_reward(
+                state=last_observation_state_default.reshape(observation_height, observation_width + 2),
+                collected_objects=collected_objects,
+                agent_size=agent_size,
+                task_type=task_type,
+                current_reward_function="gaussian",
+                x_position_of_agent=x_position_of_agent,
+                y_position_of_agent=y_position_of_agent)
 
             # normalize reward
             normalized_reward_default = normalize_rewards(task=task, absolute_reward=rewards_default)
@@ -867,48 +866,103 @@ def calculate_difficulty(env, policy, fm_network, logger, env_name: str,
 
             # set state in env
             # environment assumes a numpy array as state
-            copied_env_default.env_method("set_state", last_observation_default)
+            # copied_env_default.env_method("set_state", last_observation_default)
 
         if not done_optimal:
             # get action
             actions, _, _, _, _ = policy.get_action_and_value_and_forward_model_prediction(
                 fm_network=fm_network,
-                obs=torch.tensor(last_observation_optimal, device=device, dtype=torch.float32).clone().detach(),
+                obs=torch.tensor(last_observation_state_optimal, device=device, dtype=torch.float32).clone().detach(),
                 logger=logger,
                 position_predicting=position_predicting,
                 maximum_number_of_objects=maximum_number_of_objects)
 
             # we manually predict the next state
-            if position_predicting:
-                last_observation_optimal = get_position_and_object_positions_of_observation(
-                    torch.tensor(last_observation_optimal, device=device),
-                    maximum_number_of_objects=maximum_number_of_objects,
-                    observation_width=observation_width, observation_height=observation_height, agent_size=agent_size)
-            else:
-                last_observation_optimal = torch.tensor(last_observation_optimal, device=device,
-                                                        dtype=torch.float32).detach().clone()
-            forward_model_prediction_normal_distribution_optimal = fm_network(last_observation_optimal, actions.float())
+            # if position_predicting:
+            #     last_observation_optimal = get_position_and_object_positions_of_observation(
+            #         torch.tensor(last_observation_optimal, device=device),
+            #         maximum_number_of_objects=maximum_number_of_objects,
+            #         observation_width=observation_width, observation_height=observation_height, agent_size=agent_size)
+            # else:
+            #     last_observation_optimal = torch.tensor(last_observation_optimal, device=device,
+            #                                             dtype=torch.float32).detach().clone()
+            # forward_model_prediction_normal_distribution_optimal = fm_network(last_observation_optimal, actions.float())
+
+            # get positions
+            last_observation_optimal = get_position_and_object_positions_of_observation(
+                torch.tensor(last_observation_state_optimal, device=device),
+                maximum_number_of_objects=maximum_number_of_objects,
+                observation_width=observation_width, observation_height=observation_height, agent_size=agent_size)
+            # get next positions for new step with optimal action
+            last_observation_optimal = get_next_position_observation_moonlander(
+                observations=last_observation_optimal,
+                actions=actions[0],
+                observation_width=observation_width,
+                observation_height=observation_height,
+                agent_size=agent_size,
+                maximum_number_of_objects=maximum_number_of_objects)
 
             # get reward from forward model prediction or environment
-            if reward_predicting:
-                # state for env
-                last_observation_optimal = np.expand_dims(
-                    get_observation_of_position_and_object_positions(agent_and_object_positions=
-                    forward_model_prediction_normal_distribution_optimal.mean[0][:-1].cpu().unsqueeze(
-                        0), observation_height=observation_height,
-                        observation_width=observation_width, agent_size=agent_size, task=task).flatten().cpu().numpy(),
-                    axis=0)
-                rewards_optimal = np.expand_dims(forward_model_prediction_normal_distribution_optimal.mean[0][
-                                                     -1].cpu().detach().numpy(), axis=0)
-            else:
-                # state for env
-                last_observation_optimal = np.expand_dims(
-                    get_observation_of_position_and_object_positions(agent_and_object_positions=
-                    forward_model_prediction_normal_distribution_optimal.mean[0].cpu().unsqueeze(
-                        0), observation_height=observation_height,
-                        observation_width=observation_width, agent_size=agent_size, task=task).flatten().cpu().numpy(),
-                    axis=0)
-                _, rewards_optimal, done_optimal, _ = copied_env_optimal.step(actions)
+            # if reward_predicting and not use_reward_of_env:
+            #     # state for env
+            #     last_observation_optimal = np.expand_dims(
+            #         get_observation_of_position_and_object_positions(agent_and_object_positions=
+            #         forward_model_prediction_normal_distribution_optimal.mean[0][:-1].cpu().unsqueeze(
+            #             0), observation_height=observation_height,
+            #             observation_width=observation_width, agent_size=agent_size, task=task).flatten().cpu().numpy(),
+            #         axis=0)
+            #     rewards_optimal = np.expand_dims(forward_model_prediction_normal_distribution_optimal.mean[0][
+            #                                          -1].cpu().detach().numpy(), axis=0)
+            # else:
+            x_position_of_agent = int(
+                min(max(agent_size, last_observation_optimal[0][0]), observation_width - agent_size + 1))
+            y_position_of_agent = int(last_observation_optimal[0][1])
+            collected_objects = []
+            for index in range(2, len(last_observation_optimal[0]), 2):
+                if (
+                        (
+                                ((last_observation_optimal[0][index] - 1) == (x_position_of_agent - 1))
+                                or ((last_observation_optimal[0][index] - 1) == x_position_of_agent)
+                                or ((last_observation_optimal[0][index] - 1) == (x_position_of_agent + 1))
+                                or (last_observation_optimal[0][index] == (x_position_of_agent - 1))
+                                or (last_observation_optimal[0][index] == x_position_of_agent)
+                                or (last_observation_optimal[0][index] == (x_position_of_agent + 1))
+                                or ((last_observation_optimal[0][index] + 1) == (x_position_of_agent - 1))
+                                or ((last_observation_optimal[0][index] + 1) == x_position_of_agent)
+                                or ((last_observation_optimal[0][index] + 1) == (x_position_of_agent + 1))
+                        )
+                        and
+                        (
+                                ((last_observation_optimal[0][index + 1] - 1) == (y_position_of_agent - 1))
+                                or ((last_observation_optimal[0][index + 1] - 1) == y_position_of_agent)
+                                or ((last_observation_optimal[0][index + 1] - 1) == (y_position_of_agent + 1))
+                                or (last_observation_optimal[0][index + 1] == (y_position_of_agent - 1))
+                                or (last_observation_optimal[0][index + 1] == y_position_of_agent)
+                                or (last_observation_optimal[0][index + 1] == (y_position_of_agent + 1))
+                                or ((last_observation_optimal[0][index + 1] + 1) == (y_position_of_agent - 1))
+                                or ((last_observation_optimal[0][index + 1] + 1) == y_position_of_agent)
+                                or ((last_observation_optimal[0][index + 1] + 1) == (y_position_of_agent + 1))
+                        )
+                ):
+                    collected_objects.append(
+                        {'x': int(last_observation_optimal[0][index]), 'y': int(last_observation_optimal[0][index + 1]),
+                         'size': agent_size})
+            # state for env
+            last_observation_state_optimal = np.expand_dims(
+                get_observation_of_position_and_object_positions(agent_and_object_positions=last_observation_optimal,
+                                                                 observation_height=observation_height,
+                                                                 observation_width=observation_width,
+                                                                 agent_size=agent_size,
+                                                                 task=task).flatten().cpu().numpy(),
+                axis=0)
+            rewards_optimal, _ = calculate_gaussian_reward(
+                state=last_observation_state_optimal.reshape(observation_height, observation_width + 2),
+                collected_objects=collected_objects,
+                agent_size=agent_size,
+                task_type=task_type,
+                current_reward_function="gaussian",
+                x_position_of_agent=x_position_of_agent,
+                y_position_of_agent=y_position_of_agent)
 
             # normalize reward
             normalized_reward_optimal = normalize_rewards(task=task, absolute_reward=rewards_optimal)
@@ -918,14 +972,14 @@ def calculate_difficulty(env, policy, fm_network, logger, env_name: str,
             # environment assumes a numpy array as state
             copied_env_optimal.env_method("set_state", last_observation_optimal)
 
-    rounded_summed_up_reward_default = np.round(summed_up_reward_default, 2)
-    rounded_summed_up_reward_optimal = np.round(summed_up_reward_optimal, 2)
-    # distance between the two trajectories
-    difficulty = (max(summed_up_reward_default, summed_up_reward_optimal)) - (
-        min(summed_up_reward_default, summed_up_reward_optimal))
-
     # get a mean reward between 0 and 1
     summed_up_reward_default_normalized = summed_up_reward_default / (max(round(trajectory_length), 1))
+    summed_up_reward_optimal_normalized = summed_up_reward_optimal / (max(round(trajectory_length), 1))
+
+    # distance between the two trajectories
+    difficulty = (max(summed_up_reward_default_normalized, summed_up_reward_optimal_normalized)) - (
+        min(summed_up_reward_default_normalized, summed_up_reward_optimal_normalized))
+
     # difficulty is high if the rewards are quite different
     return difficulty, summed_up_reward_default_normalized
 

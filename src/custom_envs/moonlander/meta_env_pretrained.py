@@ -249,7 +249,8 @@ class MetaEnvPretrained(gym.Env):
          active_reward_estimation_corrected_by_SoC, input_noise) = active_model.step_in_env(
             actions=torch.tensor(action_of_task_agent).float(),
             # forward_normal=active_belief_state_normal_distribution)
-            forward_normal=active_gold_label)
+            forward_normal=active_gold_label,
+            use_reward_of_env=True)
 
         ### INACTIVE TASK ###
         # set input noise to zero

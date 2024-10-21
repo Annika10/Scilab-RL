@@ -18,7 +18,7 @@ from custom_algorithms.cleanppofm.forward_model import ProbabilisticSimpleForwar
     ProbabilisticForwardNetPositionPrediction, ProbabilisticSimpleForwardNetIncludingReward, \
     ProbabilisticForwardNetPositionPredictionIncludingReward
 from custom_algorithms.cleanppofm.utils import flatten_obs, get_position_and_object_positions_of_observation, \
-    get_next_observation_gridworld, reward_estimation, reward_calculation, calculate_prediction_error, \
+    get_next_observation_gridworld, reward_estimation, calculate_prediction_error, \
     get_next_position_observation_moonlander, calculate_difficulty, normalize_rewards, get_next_whole_observation
 from custom_algorithms.cleanppofm.agent import Agent
 from utils.custom_buffer import CustomDictRolloutBuffer as DictRolloutBuffer
@@ -628,7 +628,7 @@ class CLEANPPOFM:
                 position_predicting=self.position_predicting, maximum_number_of_objects=self.maximum_number_of_objects)
         return action.cpu().numpy(), state, forward_model_prediction_normal_distribution
 
-    def step_in_env(self, actions, forward_normal) -> tuple[
+    def step_in_env(self, actions, forward_normal, use_reward_of_env: bool = False) -> tuple[
         np.ndarray, float, bool, dict, float, float, float, float, int]:
         """
         Step in the environment with the given actions and the forward model prediction.
@@ -694,7 +694,8 @@ class CLEANPPOFM:
                                                                      prediction_error=prediction_error,
                                                                      position_predicting=self.position_predicting,
                                                                      maximum_number_of_objects=self.maximum_number_of_objects,
-                                                                     reward_predicting=self.reward_predicting)
+                                                                     reward_predicting=self.reward_predicting,
+                                                                     use_reward_of_env=use_reward_of_env)
 
         ##### CALCULATING SOC #####
         # prediction error is high, if the prediction and actual observation do not match
