@@ -878,12 +878,13 @@ class MoonlanderWorldEnv(Env):
         (
             object_range_list,
             list_of_free_ranges,
-            drift_ranges,
+            list_of_drift_ranges_with_drift_number,
         ) = hlp.create_ranges_of_objects_funnels_and_drifts(
             world_x_width=world_config["x_width"],
             world_y_height=world_config["y_height"],
             height_padding_areas=agent_config["observation_height"],
             level_difficulty=world_config["difficulty"],
+            agent_size=agent_config["size"],
             drift_length=drift_config["length"],
             use_variable_drift_intensity=drift_config["variable_intensity"],
             invisible_drift_probability=drift_config["invisible_drift_probability"],
@@ -908,10 +909,9 @@ class MoonlanderWorldEnv(Env):
 
         if (
                 objects_config["type"] == "coin"
-                and self.reward_function == "pos_neg"
                 and world_config["difficulty"] == "hard"
         ):
-            number_of_objects = 15
+            number_of_objects = 30
         else:
             number_of_objects = None
 

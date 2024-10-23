@@ -5,7 +5,7 @@ world:
   # Difficulty (empty, easy, middle, hard) scaling the number of objects and drifts
   difficulty: hard
   # whether ranges where a funnel can possibly occur should be created
-  funnel_ranges: False
+  funnel_ranges: True
   drift:
     # Length of a drift range
     length: 15
