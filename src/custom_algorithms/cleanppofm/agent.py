@@ -5,7 +5,8 @@ from gymnasium import spaces
 from torch.distributions.categorical import Categorical
 from stable_baselines3.common.logger import Logger
 from custom_algorithms.cleanppofm.utils import flatten_obs, layer_init, \
-    get_position_and_object_positions_of_observation, get_observation_of_position_and_object_positions
+    get_position_and_object_positions_of_observation, get_observation_of_position_and_object_positions, \
+    get_next_position_observation_moonlander
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -28,14 +29,15 @@ class Agent(nn.Module):
 
         # this is implemented for the gridworld envs
         if isinstance(env.observation_space, spaces.Dict):
-            obs_shape = np.sum([obs_space.shape for obs_space in env.observation_space.spaces.values()])
+            obs_shape = actor_obs_shape = np.sum(
+                [obs_space.shape for obs_space in env.observation_space.spaces.values()])
             self.flatten = True
         # this is implemented for the moonlander env?
         else:
-            obs_shape = np.array(env.observation_space.shape).prod()
+            obs_shape = actor_obs_shape = np.array(env.observation_space.shape).prod()
             self.flatten = False
         if model_based:
-            obs_shape = obs_shape * 4
+            actor_obs_shape = obs_shape * 4
 
         self.critic = nn.Sequential(
             layer_init(nn.Linear(obs_shape, 64)),
@@ -45,7 +47,7 @@ class Agent(nn.Module):
             layer_init(nn.Linear(64, 1), std=1.0),
         )
         self.actor_mean = nn.Sequential(
-            layer_init(nn.Linear(obs_shape, 64)),
+            layer_init(nn.Linear(actor_obs_shape, 64)),
             nn.Tanh(),
             layer_init(nn.Linear(64, 64)),
             nn.Tanh(),
@@ -134,8 +136,19 @@ class Agent(nn.Module):
                 nra_mean = network_result_action.mean
                 if self.reward_predicting:
                     nra_mean = nra_mean[:, :-1]
+
+                # FIXME: hardcoded next obs
+                next_positions = get_next_position_observation_moonlander(
+                    observations=cop_tensor,
+                    actions=current_action[0],
+                    observation_width=observation_width,
+                    observation_height=observation_height,
+                    agent_size=agent_size,
+                    maximum_number_of_objects=maximum_number_of_objects)
+
                 obs_after_action = get_observation_of_position_and_object_positions(
-                    agent_and_object_positions=nra_mean,
+                    # agent_and_object_positions=nra_mean,
+                    agent_and_object_positions=next_positions,
                     observation_height=observation_height,
                     observation_width=observation_width,
                     agent_size=agent_size, task=task)
@@ -218,4 +231,4 @@ class Agent(nn.Module):
         # value of critic network, forward model prediction in normal distribution
 
         return action.unsqueeze(0), distribution.log_prob(action), distribution.entropy(), self.critic(
-            obs_for_agent), forward_model_prediction_normal_distribution
+            obs), forward_model_prediction_normal_distribution
