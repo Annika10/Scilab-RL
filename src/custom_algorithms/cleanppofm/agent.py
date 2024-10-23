@@ -130,7 +130,9 @@ class Agent(nn.Module):
             obs_after_every_action = comb_obs.clone().detach()
 
             for i in range(0, self.number_of_actions):
+                # Fixme: for hardcoded next obs, we had to change the ordering
                 current_action = torch.full((cop_tensor.shape[0], 1), i)
+                current_action_hardcoded = torch.full((1, cop_tensor.shape[0]), i)
                 network_result_action = fm_network(cop_tensor, current_action)
                 action_to_prediction_dict[str(i)] = network_result_action
                 nra_mean = network_result_action.mean
@@ -140,7 +142,7 @@ class Agent(nn.Module):
                 # FIXME: hardcoded next obs
                 next_positions = get_next_position_observation_moonlander(
                     observations=cop_tensor,
-                    actions=current_action[0],
+                    actions=current_action_hardcoded[0],
                     observation_width=observation_width,
                     observation_height=observation_height,
                     agent_size=agent_size,
@@ -192,15 +194,16 @@ class Agent(nn.Module):
         # get position of last state out of the observation --> moonlander specific implementation
         if position_predicting:
             # don't predict again and use the prediction above
-            if self.model_based:
-                forward_model_prediction_normal_distribution = action_to_prediction_dict[str(action.item())]
-            else:
-                positions = get_position_and_object_positions_of_observation(obs,
-                                                                             maximum_number_of_objects=maximum_number_of_objects,
-                                                                             observation_width=observation_width,
-                                                                             observation_height=observation_height,
-                                                                             agent_size=agent_size)
-                forward_model_prediction_normal_distribution = fm_network(positions, forward_normal_action.float())
+            # fixme: doesn't work with batchsize bigger than 1
+            # if self.model_based:
+            #     forward_model_prediction_normal_distribution = action_to_prediction_dict[str(action.item())]
+            # else:
+            positions = get_position_and_object_positions_of_observation(obs,
+                                                                         maximum_number_of_objects=maximum_number_of_objects,
+                                                                         observation_width=observation_width,
+                                                                         observation_height=observation_height,
+                                                                         agent_size=agent_size)
+            forward_model_prediction_normal_distribution = fm_network(positions, forward_normal_action.float())
         else:
             forward_model_prediction_normal_distribution = fm_network(obs, forward_normal_action.float())
 
