@@ -291,10 +291,10 @@ def evaluate_policy_meta_agent(
     episode_rewards = []
     episode_lengths = []
 
-    dict_avoid = {"timesteps": [], "player_pos": [], "player_pos_2": [], "active_task": [], "current_reward": [],
+    dict_avoid = {"timesteps": [], "player_pos": [], "active_task": [], "current_reward": [],
                   "list_of_visible_objects": [], "number_of_visible_objects": [], "distance_to_closest_object": []}
 
-    dict_collect = {"timesteps": [], "player_pos": [], "player_pos_2": [], "active_task": [], "current_reward": [],
+    dict_collect = {"timesteps": [], "player_pos": [], "active_task": [], "current_reward": [],
                     "list_of_visible_objects": [], "number_of_visible_objects": [], "distance_to_closest_object": []}
 
     episode_counts = np.zeros(n_envs, dtype="int")
@@ -453,9 +453,6 @@ def evaluate_policy_meta_agent(
 
         dict_avoid["player_pos"].append(info_dict['dodge_position_before'])
         dict_collect["player_pos"].append(info_dict['collect_position_before'])
-
-        dict_avoid["player_pos_2"].append(player_dodge)
-        dict_collect["player_pos_2"].append(player_collect)
 
         dict_avoid["current_reward"].append(info_dict['reward_dodge'])
         dict_collect["current_reward"].append(info_dict['reward_collect'])
