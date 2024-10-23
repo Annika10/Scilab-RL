@@ -330,6 +330,7 @@ class CustomEvalCallbackMetaAgent(EvalCallback):
                 logger=self.logger,
                 counter=self.counter,
             )
+            self.counter += 1
 
             if self.log_path is not None:
                 self.evaluations_timesteps.append(self.num_timesteps)
