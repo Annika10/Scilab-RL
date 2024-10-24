@@ -19,7 +19,8 @@ from custom_algorithms.cleanppofm.forward_model import ProbabilisticSimpleForwar
     ProbabilisticForwardNetPositionPredictionIncludingReward
 from custom_algorithms.cleanppofm.utils import flatten_obs, get_position_and_object_positions_of_observation, \
     get_next_observation_gridworld, reward_estimation, calculate_prediction_error, \
-    get_next_position_observation_moonlander, calculate_difficulty, normalize_rewards, get_next_whole_observation
+    get_next_position_observation_moonlander, calculate_difficulty, normalize_rewards, get_next_whole_observation, \
+    get_observation_of_position_and_object_positions
 from custom_algorithms.cleanppofm.agent import Agent
 from utils.custom_buffer import CustomDictRolloutBuffer as DictRolloutBuffer
 from utils.custom_buffer import CustomRolloutBuffer as RolloutBuffer
@@ -502,6 +503,47 @@ class CLEANPPOFM:
             self._last_episode_starts = dones
 
         with torch.no_grad():
+            if self.model_based:
+                # fixme: this is hardcoded, it does not work when we have a non-deterministic forward model because we calculate the next obs at two places
+                observation_height = self.env.env_method("get_wrapper_attr", "observation_height")[0]
+                observation_width = self.env.env_method("get_wrapper_attr", "observation_width")[0]
+                agent_size = self.env.env_method("get_wrapper_attr", "size")[0]
+                task = self.env.env_method("get_wrapper_attr", "task")[0]
+                comb_obs = torch.tensor(new_obs).clone().detach()
+                comb_obj_positions = get_position_and_object_positions_of_observation(comb_obs,
+                                                                                      maximum_number_of_objects=self.maximum_number_of_objects,
+                                                                                      observation_width=observation_width,
+                                                                                      observation_height=observation_height,
+                                                                                      agent_size=agent_size)
+
+                # Convert comb_obj_positions to a tensor
+                cop_tensor = torch.tensor(comb_obj_positions).float()
+
+                obs_after_every_action = comb_obs.clone().detach()
+
+                for i in range(0, env.action_space.n):
+                    # Fixme: for hardcoded next obs, we had to change the ordering
+                    current_action = torch.full((cop_tensor.shape[0], 1), i)
+                    current_action_hardcoded = torch.full((1, cop_tensor.shape[0]), i)
+
+                    # FIXME: hardcoded next obs
+                    next_positions = get_next_position_observation_moonlander(
+                        observations=cop_tensor,
+                        actions=current_action_hardcoded[0],
+                        observation_width=observation_width,
+                        observation_height=observation_height,
+                        agent_size=agent_size,
+                        maximum_number_of_objects=self.maximum_number_of_objects)
+
+                    obs_after_action = get_observation_of_position_and_object_positions(
+                        # agent_and_object_positions=nra_mean,
+                        agent_and_object_positions=next_positions,
+                        observation_height=observation_height,
+                        observation_width=observation_width,
+                        agent_size=agent_size, task=task)
+                    obs_after_every_action = torch.cat((obs_after_every_action, obs_after_action), dim=1)
+                new_obs = obs_after_every_action
+
             # Compute value for the last timestep
             values = self.policy.get_value(new_obs)
 

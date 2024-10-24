@@ -37,7 +37,7 @@ class Agent(nn.Module):
             obs_shape = actor_obs_shape = np.array(env.observation_space.shape).prod()
             self.flatten = False
         if model_based:
-            actor_obs_shape = obs_shape * 4
+            obs_shape = obs_shape * 4
 
         self.critic = nn.Sequential(
             layer_init(nn.Linear(obs_shape, 64)),
@@ -47,7 +47,7 @@ class Agent(nn.Module):
             layer_init(nn.Linear(64, 1), std=1.0),
         )
         self.actor_mean = nn.Sequential(
-            layer_init(nn.Linear(actor_obs_shape, 64)),
+            layer_init(nn.Linear(obs_shape, 64)),
             nn.Tanh(),
             layer_init(nn.Linear(64, 64)),
             nn.Tanh(),
@@ -234,4 +234,4 @@ class Agent(nn.Module):
         # value of critic network, forward model prediction in normal distribution
 
         return action.unsqueeze(0), distribution.log_prob(action), distribution.entropy(), self.critic(
-            obs), forward_model_prediction_normal_distribution
+            obs_for_agent), forward_model_prediction_normal_distribution
