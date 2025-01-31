@@ -371,14 +371,72 @@ def calculate_action_sequence_of_means_of_frame_number_of_humans(human_mean_dodg
     return action_sequence
 
 
+def generate_random_numbers(number_of_blocks, number_of_remaining_elements):
+    # Step 1: Generate x-1 random numbers between 0 and total
+    random_numbers = sorted([random.randint(0, number_of_remaining_elements) for _ in range(number_of_blocks - 1)])
+    
+    # Step 2: Add 0 and total to the list and sort it
+    random_numbers = [0] + random_numbers + [number_of_remaining_elements]
+    
+    # Step 3: Calculate the differences between consecutive numbers
+    result = [random_numbers[i + 1] - random_numbers[i] for i in range(len(random_numbers) - 1)]
+    
+    return result
+
+
+def create_blocks(list_of_current_action_occurrence, min_length):
+    blocks = []
+    lengths_of_current_action_occurrence = len(list_of_current_action_occurrence)
+    # // floor division (returns the integer part of the division)
+    # minimum number of blocks = 1, maximum number of blocks = 5*x=235 --> x=47
+    # get random number of possible number of blocks
+    number_of_blocks = random.randint(1, lengths_of_current_action_occurrence // min_length)
+    
+    # make a list for each block with the minimum length (5)
+    minimum_block_lengths = [min_length] * number_of_blocks
+    
+    # Distribute remaining elements (that are not in the minimum lengths blocks)
+    number_of_remaining_elements = lengths_of_current_action_occurrence - (min_length * number_of_blocks)
+    number_of_elements_that_have_to_be_added_to_each_block = generate_random_numbers(number_of_blocks=number_of_blocks,
+                                                                                     number_of_remaining_elements=number_of_remaining_elements)
+    actual_block_lengths = [a + b for a, b in
+                            zip(minimum_block_lengths, number_of_elements_that_have_to_be_added_to_each_block)]
+    
+    # Create blocks
+    index = 0
+    for length in actual_block_lengths:
+        blocks.append(list_of_current_action_occurrence[index:index + length])
+        index += length
+    return blocks
+
+
 def calculate_action_sequence_for_switch_per_percentage(dodge_percentage: float, collect_percentage: float,
-                                                        n_eval_episodes: int) -> list[int]:
-    # in total, we need ~470 steps in one episode
-    action_sequence = []
-    for i in range(n_eval_episodes):
-        current_action_sequence = [0] * math.ceil(dodge_percentage * 470) + [1] * math.ceil(collect_percentage * 470)
-        random.shuffle(current_action_sequence)
-        action_sequence = action_sequence + current_action_sequence
+                                                        n_eval_episodes: int, minimum_following_frames: int = 0) -> \
+        list[int]:
+    if not minimum_following_frames or dodge_percentage == 0.0 or collect_percentage == 0.0:
+        # in total, we need ~470 steps in one episode
+        action_sequence = []
+        for i in range(n_eval_episodes):
+            current_action_sequence = [0] * math.ceil(dodge_percentage * 470) + [1] * math.ceil(
+                collect_percentage * 470)
+            random.shuffle(current_action_sequence)
+            action_sequence = action_sequence + current_action_sequence
+    else:
+        # Create blocks of 0s and 1s
+        zeros = [0] * math.ceil(dodge_percentage * 470)
+        ones = [1] * math.ceil(collect_percentage * 470)
+        
+        blocks_of_zeros = create_blocks(zeros, minimum_following_frames)
+        blocks_of_ones = create_blocks(ones, minimum_following_frames)
+        
+        # Combine all blocks
+        all_blocks = blocks_of_zeros + blocks_of_ones
+        
+        # Shuffle the blocks
+        random.shuffle(all_blocks)
+        
+        # Flatten the list of blocks
+        action_sequence = [element for block in all_blocks for element in block]
     
     return action_sequence
 
@@ -437,12 +495,9 @@ if __name__ == "__main__":
     # ranges_inverted = True
     
     mode = "switch_per_percentage"
-    percentage_pairs = [[0.5, 0.5]]
-    # [0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
-    #               [0.35, 0.65], [0.4, 0.6], [0.45, 0.55], [0.5, 0.5], [0.55, 0.45],
-    # [0.6, 0.4], [0.65, 0.35],
-    # [0.7, 0.3], [0.75, 0.25], [0.8, 0.2], [0.85, 0.15], [0.9, 0.1], [0.95, 0.05], [1, 0]]
-    # chosen_percentage_pair = percentage_pairs[0]
+    percentage_pairs = [[0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
+                        [0.35, 0.65], [0.4, 0.6], [0.45, 0.55], [0.5, 0.5], [0.55, 0.45], [0.6, 0.4], [0.65, 0.35],
+                        [0.7, 0.3], [0.75, 0.25], [0.8, 0.2], [0.85, 0.15], [0.9, 0.1], [0.95, 0.05], [1, 0]]
     meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
     dodge_best_model_name = "collect_easy_no_input_noise_15_11_rl_model_best"
     config_file_name_dodge_asteroids = "config_collect_easy.yaml"
@@ -456,6 +511,8 @@ if __name__ == "__main__":
     # collect_list_of_object_dict_lists = dict_of_filename_to_object_dict_list[
     #     "collect_hard_object_list_30_times_40.csv"]
     ranges_inverted = True
+    minimum_following_frames = 5
+    # minimum_following_frames = None
     
     ####################
     
@@ -528,7 +585,7 @@ if __name__ == "__main__":
                 f"Currently evaluating dodge percentage: {percentage_pair[0]} and collect percentage: {percentage_pair[1]}")
             action_sequence = calculate_action_sequence_for_switch_per_percentage(
                 dodge_percentage=percentage_pair[0], collect_percentage=percentage_pair[1],
-                n_eval_episodes=n_eval_episodes)
+                n_eval_episodes=n_eval_episodes, minimum_following_frames=minimum_following_frames)
             mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=n_eval_episodes, deterministic=True,
                                                       render=False, action_sequence=action_sequence,
                                                       percentage_pair=percentage_pair)
