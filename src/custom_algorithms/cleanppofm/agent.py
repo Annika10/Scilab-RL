@@ -170,7 +170,7 @@ class Agent(nn.Module):
                 
                 # possibly a batch of 64, so call the function for each observation
                 rewards_for_every_action[i] = [calculate_gaussian_reward(
-                    state=np.array(row).reshape(observation_height, observation_width + 2),
+                    state=np.array(row.cpu()).reshape(observation_height, observation_width + 2),
                     collected_objects=collected_objects,
                     agent_size=agent_size,
                     task_type=task_type,
@@ -183,7 +183,7 @@ class Agent(nn.Module):
                 rewards_for_every_action_tensor = torch.tensor(rewards_for_every_action[i]).reshape(
                     obs_after_every_action.shape[0],
                     1)
-                obs_after_every_action = torch.cat((obs_after_every_action, rewards_for_every_action_tensor), dim=1)
+                obs_after_every_action = torch.cat((obs_after_every_action.to(device=device), rewards_for_every_action_tensor.to(device=device)), dim=1)
             obs_for_agent = obs_after_every_action
         
         ##### PREDICT NEXT ACTION #####
