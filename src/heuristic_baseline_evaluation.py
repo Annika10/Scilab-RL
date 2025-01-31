@@ -29,7 +29,8 @@ def evaluate_policy(
         warn: bool = True,
         action_sequence: list[int] = None,
         switch_per_NfC: bool = False,
-        percentage_pair: Optional[List[float]] = None
+        percentage_pair: Optional[List[float]] = None,
+        minimum_following_frames: int = 0
 ) -> Union[Tuple[float, float], Tuple[List[float], List[int]]]:
     """
     Runs policy for ``n_eval_episodes`` episodes and returns average reward.
@@ -150,28 +151,33 @@ def evaluate_policy(
                 # print(f"Need for control collect: {new_observations['need_for_control_collect']}")
                 # print(f"Action: {actions}")
                 
-                if actions[0] == 0:
-                    a = -0.5 * new_observations["need_for_control_collect"] + 0.5
-                    d = 0.5 * new_observations["need_for_control_collect"] + 0.5
-                    
-                    corrected_inactive_need_for_control = a * math.tanh(0.25 * (counter_without_switch - (30 / 2))) + d
-                    # print(f"COLLECT: Corrected inactive need for control: {corrected_inactive_need_for_control}")
-                    
-                    if new_observations["need_for_control_dodge"] >= corrected_inactive_need_for_control:
-                        actions = np.array([0])
-                    else:
-                        actions = np.array([1])
+                if counter_without_switch < minimum_following_frames:
+                    actions = last_action
                 else:
-                    a = -0.5 * new_observations["need_for_control_dodge"] + 0.5
-                    d = 0.5 * new_observations["need_for_control_dodge"] + 0.5
-                    
-                    corrected_inactive_need_for_control = a * math.tanh(0.25 * (counter_without_switch - (30 / 2))) + d
-                    # print(f"DODGE: Corrected inactive need for control: {corrected_inactive_need_for_control}")
-                    
-                    if new_observations["need_for_control_collect"] >= corrected_inactive_need_for_control:
-                        actions = np.array([1])
+                    if actions[0] == 0:
+                        a = -0.5 * new_observations["need_for_control_collect"] + 0.5
+                        d = 0.5 * new_observations["need_for_control_collect"] + 0.5
+                        
+                        corrected_inactive_need_for_control = a * math.tanh(
+                            0.25 * (counter_without_switch - (30 / 2))) + d
+                        # print(f"COLLECT: Corrected inactive need for control: {corrected_inactive_need_for_control}")
+                        
+                        if new_observations["need_for_control_dodge"] >= corrected_inactive_need_for_control:
+                            actions = np.array([0])
+                        else:
+                            actions = np.array([1])
                     else:
-                        actions = np.array([0])
+                        a = -0.5 * new_observations["need_for_control_dodge"] + 0.5
+                        d = 0.5 * new_observations["need_for_control_dodge"] + 0.5
+                        
+                        corrected_inactive_need_for_control = a * math.tanh(
+                            0.25 * (counter_without_switch - (30 / 2))) + d
+                        # print(f"DODGE: Corrected inactive need for control: {corrected_inactive_need_for_control}")
+                        
+                        if new_observations["need_for_control_collect"] >= corrected_inactive_need_for_control:
+                            actions = np.array([1])
+                        else:
+                            actions = np.array([0])
         else:
             actions = np.array([action_sequence[counter]])
         
@@ -314,19 +320,21 @@ def evaluate_policy(
     print(f"Mean dodge reward: {mean_dodge_reward:.2f} +/- {std_dodge_reward:.2f}")
     print(f"Mean collect reward: {mean_collect_reward:.2f} +/- {std_collect_reward:.2f}")
     
-    filepath_for_percentage = directory / f"{dodge_best_model_name}_{collect_best_model_name}_percentage_pairs.csv"
-    # write the objects list of each episode to file
-    with open(filepath_for_percentage, "a") as file:
-        writer = csv.writer(file)
-        writer.writerow([percentage_pair, mean_reward, std_reward, mean_crashed_objects, std_crashed_objects,
-                         mean_collected_objects, std_collected_objects, mean_number_of_switches, std_number_of_switches,
-                         mean_number_of_dodge_actions, std_number_of_dodge_actions, mean_number_of_collect_actions,
-                         std_number_of_collect_actions, episode_rewards, episode_number_of_crashed_objects,
-                         episode_number_of_collected_objects, episode_number_of_switches,
-                         episode_number_of_dodge_actions, episode_number_of_collect_actions,
-                         need_for_control_dodge_mean, need_for_control_dodge_std, need_for_control_collect_mean,
-                         need_for_control_collect_std, mean_dodge_reward, std_dodge_reward, mean_collect_reward,
-                         std_collect_reward])
+    if percentage_pair:
+        filepath_for_percentage = directory / f"{dodge_best_model_name}_{collect_best_model_name}_percentage_pairs.csv"
+        # write the objects list of each episode to file
+        with open(filepath_for_percentage, "a") as file:
+            writer = csv.writer(file)
+            writer.writerow([percentage_pair, mean_reward, std_reward, mean_crashed_objects, std_crashed_objects,
+                             mean_collected_objects, std_collected_objects, mean_number_of_switches,
+                             std_number_of_switches,
+                             mean_number_of_dodge_actions, std_number_of_dodge_actions, mean_number_of_collect_actions,
+                             std_number_of_collect_actions, episode_rewards, episode_number_of_crashed_objects,
+                             episode_number_of_collected_objects, episode_number_of_switches,
+                             episode_number_of_dodge_actions, episode_number_of_collect_actions,
+                             need_for_control_dodge_mean, need_for_control_dodge_std, need_for_control_collect_mean,
+                             need_for_control_collect_std, mean_dodge_reward, std_dodge_reward, mean_collect_reward,
+                             std_collect_reward])
     ###################
     
     if reward_threshold is not None:
@@ -413,30 +421,32 @@ def create_blocks(list_of_current_action_occurrence, min_length):
 def calculate_action_sequence_for_switch_per_percentage(dodge_percentage: float, collect_percentage: float,
                                                         n_eval_episodes: int, minimum_following_frames: int = 0) -> \
         list[int]:
+    action_sequence = []
     if not minimum_following_frames or dodge_percentage == 0.0 or collect_percentage == 0.0:
         # in total, we need ~470 steps in one episode
-        action_sequence = []
         for i in range(n_eval_episodes):
             current_action_sequence = [0] * math.ceil(dodge_percentage * 470) + [1] * math.ceil(
                 collect_percentage * 470)
             random.shuffle(current_action_sequence)
             action_sequence = action_sequence + current_action_sequence
     else:
-        # Create blocks of 0s and 1s
-        zeros = [0] * math.ceil(dodge_percentage * 470)
-        ones = [1] * math.ceil(collect_percentage * 470)
-        
-        blocks_of_zeros = create_blocks(zeros, minimum_following_frames)
-        blocks_of_ones = create_blocks(ones, minimum_following_frames)
-        
-        # Combine all blocks
-        all_blocks = blocks_of_zeros + blocks_of_ones
-        
-        # Shuffle the blocks
-        random.shuffle(all_blocks)
-        
-        # Flatten the list of blocks
-        action_sequence = [element for block in all_blocks for element in block]
+        for i in range(n_eval_episodes):
+            # Create blocks of 0s and 1s
+            zeros = [0] * math.ceil(dodge_percentage * 470)
+            ones = [1] * math.ceil(collect_percentage * 470)
+            
+            blocks_of_zeros = create_blocks(zeros, minimum_following_frames)
+            blocks_of_ones = create_blocks(ones, minimum_following_frames)
+            
+            # Combine all blocks
+            all_blocks = blocks_of_zeros + blocks_of_ones
+            
+            # Shuffle the blocks
+            random.shuffle(all_blocks)
+            
+            # Flatten the list of blocks
+            current_action_sequence = [element for block in all_blocks for element in block]
+            action_sequence = action_sequence + current_action_sequence
     
     return action_sequence
 
@@ -481,38 +491,40 @@ if __name__ == "__main__":
     # dodge_list_of_object_dict_lists = None
     # collect_list_of_object_dict_lists = None
     
-    # mode = "switch_per_NfC"
-    # meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
-    # dodge_best_model_name = "collect_easy_no_input_noise_15_11_rl_model_best"
-    # config_file_name_dodge_asteroids = "config_collect_easy.yaml"
-    # collect_best_model_name = "collect_hard_no_input_noise_15_11_rl_model_best"
-    # config_file_name_collect_asteroids = "config_collect_hard.yaml"
-    # two_collect_tasks = True
-    # # dodge_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_easy_object_list_30_times_40.csv"]
-    # dodge_list_of_object_dict_lists = None
-    # # collect_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_hard_object_list_30_times_40.csv"]
-    # collect_list_of_object_dict_lists = None
-    # ranges_inverted = True
-    
-    mode = "switch_per_percentage"
-    percentage_pairs = [[0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
-                        [0.35, 0.65], [0.4, 0.6], [0.45, 0.55], [0.5, 0.5], [0.55, 0.45], [0.6, 0.4], [0.65, 0.35],
-                        [0.7, 0.3], [0.75, 0.25], [0.8, 0.2], [0.85, 0.15], [0.9, 0.1], [0.95, 0.05], [1, 0]]
+    mode = "switch_per_NfC"
     meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
     dodge_best_model_name = "collect_easy_no_input_noise_15_11_rl_model_best"
     config_file_name_dodge_asteroids = "config_collect_easy.yaml"
     collect_best_model_name = "collect_hard_no_input_noise_15_11_rl_model_best"
     config_file_name_collect_asteroids = "config_collect_hard.yaml"
     two_collect_tasks = True
+    # dodge_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_easy_object_list_30_times_40.csv"]
     dodge_list_of_object_dict_lists = None
+    # collect_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_hard_object_list_30_times_40.csv"]
     collect_list_of_object_dict_lists = None
+    ranges_inverted = True
+    minimum_following_frames = 5
+    # # minimum_following_frames = None
+    
+    # mode = "switch_per_percentage"
+    # percentage_pairs = [[0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
+    #                     [0.35, 0.65], [0.4, 0.6], [0.45, 0.55], [0.5, 0.5], [0.55, 0.45], [0.6, 0.4], [0.65, 0.35],
+    #                     [0.7, 0.3], [0.75, 0.25], [0.8, 0.2], [0.85, 0.15], [0.9, 0.1], [0.95, 0.05], [1, 0]]
+    # meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
+    # dodge_best_model_name = "collect_easy_no_input_noise_15_11_rl_model_best"
+    # config_file_name_dodge_asteroids = "config_collect_easy.yaml"
+    # collect_best_model_name = "collect_hard_no_input_noise_15_11_rl_model_best"
+    # config_file_name_collect_asteroids = "config_collect_hard.yaml"
+    # two_collect_tasks = True
+    # # dodge_list_of_object_dict_lists = None
+    # # collect_list_of_object_dict_lists = None
     # dodge_list_of_object_dict_lists = dict_of_filename_to_object_dict_list[
     #     "dodge_hard_object_list_30_times_40.csv"],
     # collect_list_of_object_dict_lists = dict_of_filename_to_object_dict_list[
     #     "collect_hard_object_list_30_times_40.csv"]
-    ranges_inverted = True
-    minimum_following_frames = 5
-    # minimum_following_frames = None
+    # ranges_inverted = False
+    # minimum_following_frames = 5
+    # # minimum_following_frames = None
     
     ####################
     
@@ -523,7 +535,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     register_custom_envs()
     
-    n_eval_episodes = 10
+    n_eval_episodes = 1
     
     print("CURRENTLY EVALUATING HARD HARD INPUT NOISE")
     
@@ -559,7 +571,8 @@ if __name__ == "__main__":
                                                   render=True, action_sequence=action_sequence)
     elif mode == "switch_per_NfC":
         mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=n_eval_episodes, deterministic=True,
-                                                  render=False, switch_per_NfC=True)
+                                                  render=False, switch_per_NfC=True,
+                                                  minimum_following_frames=minimum_following_frames)
     elif mode == "switch_per_percentage":
         directory = ROOT_DIR / "logs"
         filepath_for_percentage = directory / f"{dodge_best_model_name}_{collect_best_model_name}_percentage_pairs.csv"
