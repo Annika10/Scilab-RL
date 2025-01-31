@@ -1,3 +1,4 @@
+import os
 import random
 import csv
 import ast
@@ -27,7 +28,8 @@ def evaluate_policy(
         return_episode_rewards: bool = False,
         warn: bool = True,
         action_sequence: list[int] = None,
-        switch_per_NfC: bool = False
+        switch_per_NfC: bool = False,
+        percentage_pair: Optional[List[float]] = None
 ) -> Union[Tuple[float, float], Tuple[List[float], List[int]]]:
     """
     Runs policy for ``n_eval_episodes`` episodes and returns average reward.
@@ -66,12 +68,12 @@ def evaluate_policy(
     is_monitor_wrapped = False
     # Avoid circular import
     from stable_baselines3.common.monitor import Monitor
-
+    
     if not isinstance(env, VecEnv):
         env = DummyVecEnv([lambda: env])  # type: ignore[list-item, return-value]
-
+    
     is_monitor_wrapped = is_vecenv_wrapped(env, VecMonitor) or env.env_is_wrapped(Monitor)[0]
-
+    
     if not is_monitor_wrapped and warn:
         warnings.warn(
             "Evaluation environment is not wrapped with a ``Monitor`` wrapper. "
@@ -79,34 +81,34 @@ def evaluate_policy(
             "Consider wrapping environment first with ``Monitor`` wrapper.",
             UserWarning,
         )
-
+    
     n_envs = env.num_envs
     episode_rewards = []
     episode_lengths = []
-
+    
     episode_counts = np.zeros(n_envs, dtype="int")
     # Divides episodes among different sub environments in the vector as evenly as possible
     episode_count_targets = np.array([(n_eval_episodes + i) // n_envs for i in range(n_envs)], dtype="int")
-
+    
     current_rewards = np.zeros(n_envs)
     current_lengths = np.zeros(n_envs, dtype="int")
     observations = env.reset()
     ##### MY CODE #####
-
+    
     if render:
         animation = LiveAnimationPlot(
             y_axis_labels=['need_for_control_dodge', 'need_for_control_collect', 'corrected_inactive_need_for_control',
                            'placeholder'], env=env)
-
+    
     # ndarray (1,)
     if action_sequence is None or switch_per_NfC:
         actions = np.array([0])
         new_observations = {"need_for_control_dodge": np.array([[0.00]]),
                             "need_for_control_collect": np.array([[0.00]])}
-
+    
     counter = 0
     counter_without_switch = 0
-
+    
     last_action = np.array([0])
     current_number_of_crashed_objects = np.zeros(n_envs, dtype="int")
     current_number_of_collected_objects = np.zeros(n_envs, dtype="int")
@@ -118,13 +120,13 @@ def evaluate_policy(
     episode_number_of_switches = []
     episode_number_of_dodge_actions = []
     episode_number_of_collect_actions = []
-
+    
     need_for_control_dodge = []
     need_for_control_collect = []
     episode_reward_dodge = []
     episode_reward_collect = []
     ###################
-
+    
     episode_starts = np.ones((env.num_envs,), dtype=bool)
     while (episode_counts < episode_count_targets).any():
         ##### MY CODE #####
@@ -140,21 +142,21 @@ def evaluate_policy(
                 # not weighting anymore but actual NfC -> weighting doesn't have an impact if the value is zero
                 # a⋅tan(b(x+c))+d
                 # a and d dependent on x (NfC)
-
+                
                 # last active task was dodge
                 # last inactive task was collect
                 # print(f"Counter: {counter}")
                 # print(f"Need for control dodge: {new_observations['need_for_control_dodge']}")
                 # print(f"Need for control collect: {new_observations['need_for_control_collect']}")
                 # print(f"Action: {actions}")
-
+                
                 if actions[0] == 0:
                     a = -0.5 * new_observations["need_for_control_collect"] + 0.5
                     d = 0.5 * new_observations["need_for_control_collect"] + 0.5
-
+                    
                     corrected_inactive_need_for_control = a * math.tanh(0.25 * (counter_without_switch - (30 / 2))) + d
                     # print(f"COLLECT: Corrected inactive need for control: {corrected_inactive_need_for_control}")
-
+                    
                     if new_observations["need_for_control_dodge"] >= corrected_inactive_need_for_control:
                         actions = np.array([0])
                     else:
@@ -162,28 +164,28 @@ def evaluate_policy(
                 else:
                     a = -0.5 * new_observations["need_for_control_dodge"] + 0.5
                     d = 0.5 * new_observations["need_for_control_dodge"] + 0.5
-
+                    
                     corrected_inactive_need_for_control = a * math.tanh(0.25 * (counter_without_switch - (30 / 2))) + d
                     # print(f"DODGE: Corrected inactive need for control: {corrected_inactive_need_for_control}")
-
+                    
                     if new_observations["need_for_control_collect"] >= corrected_inactive_need_for_control:
                         actions = np.array([1])
                     else:
                         actions = np.array([0])
         else:
             actions = np.array([action_sequence[counter]])
-
+        
         ###################
         new_observations, rewards, dones, infos = env.step(actions)
         current_rewards += rewards
         current_lengths += 1
-
+        
         ##### MY CODE #####
         need_for_control_dodge.append(new_observations["need_for_control_dodge"])
         need_for_control_collect.append(new_observations["need_for_control_collect"])
-
+        
         counter += 1
-
+        
         info_dict = infos[0]
         current_number_of_crashed_objects += info_dict["info_dodge"][0]["number_of_crashed_or_collected_objects"]
         current_number_of_collected_objects += info_dict["info_collect"][0]["number_of_crashed_or_collected_objects"]
@@ -198,7 +200,7 @@ def evaluate_policy(
         elif actions == np.array([1]):
             current_number_of_collect_actions += 1
         ###################
-
+        
         for i in range(n_envs):
             if episode_counts[i] < episode_count_targets[i]:
                 # unpack values so that the callback can access the local variables
@@ -206,10 +208,10 @@ def evaluate_policy(
                 done = dones[i]
                 info = infos[i]
                 episode_starts[i] = done
-
+                
                 if callback is not None:
                     callback(locals(), globals())
-
+                
                 if dones[i]:
                     if is_monitor_wrapped:
                         # Atari wrapper can send a "done" signal when
@@ -227,7 +229,7 @@ def evaluate_policy(
                         episode_rewards.append(current_rewards[i])
                         episode_lengths.append(current_lengths[i])
                         episode_counts[i] += 1
-
+                        
                         ##### MY CODE #####
                         episode_number_of_crashed_objects.append(current_number_of_crashed_objects[i])
                         episode_number_of_collected_objects.append(current_number_of_collected_objects[i])
@@ -239,10 +241,10 @@ def evaluate_policy(
                         episode_reward_collect.append(
                             normalize_rewards(task="collect", absolute_reward=info_dict["info_collect"][0]["gaussian"]))
                         ###################
-
+                    
                     current_rewards[i] = 0
                     current_lengths[i] = 0
-
+                    
                     ##### MY CODE #####
                     current_number_of_crashed_objects[i] = 0
                     current_number_of_collected_objects[i] = 0
@@ -250,12 +252,12 @@ def evaluate_policy(
                     current_number_of_dodge_actions[i] = 0
                     current_number_of_collect_actions[i] = 0
                     ###################
-
+        
         observations = new_observations
-
+        
         if render:
             env.render()
-
+            
             ##### MY CODE #####
             animation.x_data[0].append(counter)
             animation.x_data[1].append(counter)
@@ -269,11 +271,11 @@ def evaluate_policy(
                 animation.y_data[3].append(0)
             animation.start_animation()
             ###################
-
+    
     # animation.save_animation("animation")
     mean_reward = np.mean(episode_rewards)
     std_reward = np.std(episode_rewards)
-
+    
     ##### MY CODE #####
     mean_crashed_objects = np.mean(episode_number_of_crashed_objects)
     std_crashed_objects = np.std(episode_number_of_crashed_objects)
@@ -293,7 +295,7 @@ def evaluate_policy(
     std_dodge_reward = np.std(episode_reward_collect)
     mean_collect_reward = np.mean(episode_reward_collect)
     std_collect_reward = np.std(episode_reward_collect)
-
+    
     print(f"Mean reward: {mean_reward:.2f} +/- {std_reward:.2f}")
     print(f"Mean number of crashed objects: {mean_crashed_objects:.2f} +/- {std_crashed_objects:.2f}")
     print(f"Mean number of collected objects: {mean_collected_objects:.2f} +/- {std_collected_objects:.2f}")
@@ -311,8 +313,22 @@ def evaluate_policy(
     print(f"Mean need for control collect: {need_for_control_collect_mean:.8f} +/- {need_for_control_collect_std:.8f}")
     print(f"Mean dodge reward: {mean_dodge_reward:.2f} +/- {std_dodge_reward:.2f}")
     print(f"Mean collect reward: {mean_collect_reward:.2f} +/- {std_collect_reward:.2f}")
+    
+    filepath_for_percentage = directory / f"{dodge_best_model_name}_{collect_best_model_name}_percentage_pairs.csv"
+    # write the objects list of each episode to file
+    with open(filepath_for_percentage, "a") as file:
+        writer = csv.writer(file)
+        writer.writerow([percentage_pair, mean_reward, std_reward, mean_crashed_objects, std_crashed_objects,
+                         mean_collected_objects, std_collected_objects, mean_number_of_switches, std_number_of_switches,
+                         mean_number_of_dodge_actions, std_number_of_dodge_actions, mean_number_of_collect_actions,
+                         std_number_of_collect_actions, episode_rewards, episode_number_of_crashed_objects,
+                         episode_number_of_collected_objects, episode_number_of_switches,
+                         episode_number_of_dodge_actions, episode_number_of_collect_actions,
+                         need_for_control_dodge_mean, need_for_control_dodge_std, need_for_control_collect_mean,
+                         need_for_control_collect_std, mean_dodge_reward, std_dodge_reward, mean_collect_reward,
+                         std_collect_reward])
     ###################
-
+    
     if reward_threshold is not None:
         assert mean_reward > reward_threshold, "Mean reward below threshold: " f"{mean_reward:.2f} < {reward_threshold:.2f}"
     if return_episode_rewards:
@@ -342,16 +358,16 @@ def calculate_action_sequence_of_means_of_frame_number_of_humans(human_mean_dodg
     """
     # in total, we need ~500 steps in one episode
     action_sequence = []
-
+    
     while len(action_sequence) < (500 * n_eval_episodes):
         # sample from dodge mean and std and add the corresponding number of 0s
         num_zeros = int(np.random.normal(human_mean_dodge_switch_frame_number, human_std_dodge_switch_frame_number))
         action_sequence.extend([0] * num_zeros)
-
+        
         # sample from collect mean and std and add the corresponding number of 1s
         num_ones = int(np.random.normal(human_mean_collect_switch_frame_number, human_std_collect_switch_frame_number))
         action_sequence.extend([1] * num_ones)
-
+    
     return action_sequence
 
 
@@ -363,7 +379,7 @@ def calculate_action_sequence_for_switch_per_percentage(dodge_percentage: float,
         current_action_sequence = [0] * math.ceil(dodge_percentage * 470) + [1] * math.ceil(collect_percentage * 470)
         random.shuffle(current_action_sequence)
         action_sequence = action_sequence + current_action_sequence
-
+    
     return action_sequence
 
 
@@ -372,7 +388,7 @@ if __name__ == "__main__":
     filename_collect_hard = "collect_hard_object_list_30_times_40.csv"
     filename_dodge_easy = "dodge_easy_object_list_30_times_40.csv"
     filename_dodge_hard = "dodge_hard_object_list_30_times_40.csv"
-
+    
     list_of_filenames = [filename_collect_easy, filename_collect_hard, filename_dodge_easy, filename_dodge_hard]
     dict_of_filename_to_object_dict_list = {}
     for filename in list_of_filenames:
@@ -385,7 +401,7 @@ if __name__ == "__main__":
                 # form string to list of dictionaries
                 list_of_object_dict_lists.append(ast.literal_eval(line[1]))
         dict_of_filename_to_object_dict_list[filename] = list_of_object_dict_lists
-
+    
     ### DEFINE BEFORE ###
     # mode = "switch_every_step"
     # meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
@@ -396,7 +412,7 @@ if __name__ == "__main__":
     # two_collect_tasks = False
     # dodge_list_of_object_dict_lists = None
     # collect_list_of_object_dict_lists = None
-
+    
     # mode = "switch_as_humans"
     # meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
     # dodge_best_model_name = "dodge_hard_no_input_noise_15_11_rl_model_best"
@@ -406,7 +422,7 @@ if __name__ == "__main__":
     # two_collect_tasks = False
     # dodge_list_of_object_dict_lists = None
     # collect_list_of_object_dict_lists = None
-
+    
     # mode = "switch_per_NfC"
     # meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
     # dodge_best_model_name = "collect_easy_no_input_noise_15_11_rl_model_best"
@@ -419,7 +435,7 @@ if __name__ == "__main__":
     # # collect_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_hard_object_list_30_times_40.csv"]
     # collect_list_of_object_dict_lists = None
     # ranges_inverted = True
-
+    
     mode = "switch_per_percentage"
     percentage_pairs = [[0.5, 0.5]]
     # [0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
@@ -440,20 +456,20 @@ if __name__ == "__main__":
     # collect_list_of_object_dict_lists = dict_of_filename_to_object_dict_list[
     #     "collect_hard_object_list_30_times_40.csv"]
     ranges_inverted = True
-
+    
     ####################
-
+    
     if mode not in ["switch_every_step", "switch_as_humans", "switch_per_NfC", "switch_per_percentage"]:
         raise ValueError(
             "Mode must be one of 'switch_every_step', 'switch_as_humans', 'switch_per_NfC', 'switch_per_percentage'")
-
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     register_custom_envs()
-
+    
     n_eval_episodes = 10
-
+    
     print("CURRENTLY EVALUATING HARD HARD INPUT NOISE")
-
+    
     # Initialise the environment
     env = gym.make(meta_env_name, render_mode="human", dodge_best_model_name=dodge_best_model_name,
                    collect_best_model_name=collect_best_model_name,
@@ -463,7 +479,7 @@ if __name__ == "__main__":
                    dodge_list_of_object_dict_lists=dodge_list_of_object_dict_lists,
                    collect_list_of_object_dict_lists=collect_list_of_object_dict_lists
                    )
-
+    
     if mode == "switch_every_step":
         mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=10, deterministic=True, render=True)
     elif mode == "switch_as_humans":
@@ -474,20 +490,39 @@ if __name__ == "__main__":
         human_std_dodge_switch_frame_number = 5.240052 * 10
         human_mean_collect_switch_frame_number = 3.996455 * 10
         human_std_collect_switch_frame_number = 3.889264 * 10
-
+        
         action_sequence = calculate_action_sequence_of_means_of_frame_number_of_humans(
             human_mean_dodge_switch_frame_number=human_mean_dodge_switch_frame_number,
             human_std_dodge_switch_frame_number=human_std_dodge_switch_frame_number,
             human_mean_collect_switch_frame_number=human_mean_collect_switch_frame_number,
             human_std_collect_switch_frame_number=human_std_collect_switch_frame_number,
             n_eval_episodes=n_eval_episodes)
-
+        
         mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=n_eval_episodes, deterministic=True,
                                                   render=True, action_sequence=action_sequence)
     elif mode == "switch_per_NfC":
         mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=n_eval_episodes, deterministic=True,
                                                   render=False, switch_per_NfC=True)
     elif mode == "switch_per_percentage":
+        directory = ROOT_DIR / "logs"
+        filepath_for_percentage = directory / f"{dodge_best_model_name}_{collect_best_model_name}_percentage_pairs.csv"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        # header for csv
+        # write the objects list of each episode to file
+        with open(filepath_for_percentage, "a") as file:
+            writer = csv.writer(file)
+            writer.writerow(["Percentage pair", "Mean reward", "Std reward", "Mean number of crashed objects",
+                             "Std number of crashed objects", "Mean number of collected objects",
+                             "Std number of collected objects", "Mean number of switches", "Std number of switches",
+                             "Mean number of dodge actions", "Std number of dodge actions",
+                             "Mean number of collect actions", "Std number of collect actions", "Episode rewards",
+                             "Episode number of crashed objects", "Episode number of collected objects",
+                             "Episode number of switches", "Episode number of dodge actions",
+                             "Episode number of collect actions", "Mean need for control dodge",
+                             "Std need for control dodge", "Mean need for control collect",
+                             "Std need for control collect", "Mean dodge reward", "Std dodge reward",
+                             "Mean collect reward", "Std collect reward"])
         for percentage_pair in percentage_pairs:
             print(
                 f"Currently evaluating dodge percentage: {percentage_pair[0]} and collect percentage: {percentage_pair[1]}")
@@ -495,8 +530,9 @@ if __name__ == "__main__":
                 dodge_percentage=percentage_pair[0], collect_percentage=percentage_pair[1],
                 n_eval_episodes=n_eval_episodes)
             mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=n_eval_episodes, deterministic=True,
-                                                      render=False, action_sequence=action_sequence)
+                                                      render=False, action_sequence=action_sequence,
+                                                      percentage_pair=percentage_pair)
     else:
         raise ValueError("Mode must be one of 'switch_every_step', 'switch_as_humans', 'switch_per_NfC'")
-
+    
     print(mean_reward, std_reward)
