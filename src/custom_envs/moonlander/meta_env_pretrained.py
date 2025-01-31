@@ -41,7 +41,7 @@ class MetaEnvPretrained(gym.Env):
                  use_prediction_error: bool = True, use_need_for_control: bool = True,
                  can_only_switch_as_often_as_humans: bool = False, obs_is_SoC: bool = False,
                  reward_good_switch_decision: bool = False, reward_function_paper: bool = False,
-                 reward_is_NfC: bool = False, two_collect_task: bool = False,
+                 reward_is_NfC: bool = False, two_collect_task: bool = False, ranges_inverted: bool = False,
                  config_file_name_dodge_asteroids: str = None, config_file_name_collect_asteroids: str = None):
         self.ROOT_DIR = "."
         if config_file_name_dodge_asteroids is None:
@@ -84,6 +84,12 @@ class MetaEnvPretrained(gym.Env):
         self.reward_function_paper = reward_function_paper
         self.reward_is_NfC = reward_is_NfC
         self.two_collect_task = two_collect_task
+        # it is always the first task where the ranges are inverted!
+        self.ranges_inverted = ranges_inverted
+        if self.ranges_inverted:
+            str_range = "ranges-inverted-"
+        else:
+            str_range = ""
 
         if not self.with_SoC_in_observation and self.obs_is_SoC:
             raise ValueError(
@@ -166,7 +172,7 @@ class MetaEnvPretrained(gym.Env):
             if not self.two_collect_task:
                 self.trained_dodge_asteroids = CLEANPPOFM.load(path=file,
                                                                env=make_vec_env(
-                                                                   f"MoonlanderWorld-dodge-gaussian-{dodge_task_difficulty}-v0",
+                                                                   f"MoonlanderWorld-dodge-gaussian-{dodge_task_difficulty}-{str_range}v0",
                                                                    n_envs=1))
             else:
                 # FIXME: better naming in whole file + obs
@@ -175,7 +181,7 @@ class MetaEnvPretrained(gym.Env):
                     "You are training two collect tasks, but the naming is still for dodge and collect task")
                 self.trained_dodge_asteroids = CLEANPPOFM.load(path=file,
                                                                env=make_vec_env(
-                                                                   f"MoonlanderWorld-collect-gaussian-{dodge_task_difficulty}-v0",
+                                                                   f"MoonlanderWorld-collect-gaussian-{dodge_task_difficulty}-{str_range}v0",
                                                                    n_envs=1))
             self.trained_dodge_asteroids.set_logger(logger=self.logger)
         with open(
@@ -391,7 +397,7 @@ class MetaEnvPretrained(gym.Env):
         # perform default action 1 in inactive task
         # only four return value because DummyVecEnv only returns observation, reward, done, info
         # but meta agent does not see actual state and reward
-        actual_inactive_observation, _, inactive_is_done, inactive_info = inactive_model.env.step(
+        actual_inactive_observation, actual_reward, inactive_is_done, inactive_info = inactive_model.env.step(
             torch.tensor([1], device=device))
         actual_inactive_agent_and_object_positions_tensor_after_step = get_position_and_object_positions_of_observation(
             torch.tensor(actual_inactive_observation, device=device),
@@ -690,6 +696,13 @@ class MetaEnvPretrained(gym.Env):
                     np.full((self.observation_height, 1), second_fill_value)),
                 axis=1)
             observation = np.concatenate((row, observation, row), axis=0)
+
+            a_min = np.min(observation)
+            a_max = np.max(observation)
+            a_scaled = 255 * (observation - a_min) / (a_max - a_min)
+            from PIL import Image
+            im = Image.fromarray(a_scaled).convert('RGB')
+            im.save(f"state_{self.step_counter}.png")
 
             self.im.set_data(observation)
             if self.render_mode == "human":

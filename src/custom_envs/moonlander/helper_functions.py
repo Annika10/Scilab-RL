@@ -18,6 +18,7 @@ def create_ranges_of_objects_funnels_and_drifts(
         invisible_drift_probability: float = 0.0,
         fake_drift_probability: float = 0.0,
         funnel_range: bool = True,
+        ranges_inverted: bool = False,
 ) -> Tuple[List[List[int]], List[List[int]], List[List[int]]]:
     """
     creates a list of ranges where objects occur
@@ -36,6 +37,7 @@ def create_ranges_of_objects_funnels_and_drifts(
         fake_drift_probability: Probability of a given drift being fake (displayed but zero intensity). The sum with
                         invisible_drift_probability must be <= 1.
         funnel_range: Whether to create funnel ranges
+        ranges_inverted: Whether to invert the ranges (i.e. first obstacles instead of starting with a funnel/free space
     Returns:
         list of dicts of objects, list of free ranges, list of drifts
     """
@@ -123,25 +125,43 @@ def create_ranges_of_objects_funnels_and_drifts(
                 (y_height_without_padding_area - (2 * maximum_needed_range_for_funnel)) / 2
             )
 
-            ### OBJECTS
-            object_range_list = [
-                [
-                    maximum_needed_range_for_funnel + 1,
-                    maximum_needed_range_for_funnel + remaining_range_for_objects,
-                ],
-                [
-                    (2 * maximum_needed_range_for_funnel) + remaining_range_for_objects + 1,
-                    y_height_without_padding_area,
-                ],
-            ]
-            ### WALLS
-            free_range_list = [
-                [1, maximum_needed_range_for_funnel],
-                [
-                    maximum_needed_range_for_funnel + remaining_range_for_objects + 1,
-                    (2 * maximum_needed_range_for_funnel) + remaining_range_for_objects,
-                ],
-            ]
+            if not ranges_inverted:
+                ### OBJECTS
+                object_range_list = [
+                    [
+                        maximum_needed_range_for_funnel + 1,
+                        maximum_needed_range_for_funnel + remaining_range_for_objects,
+                    ],
+                    [
+                        (2 * maximum_needed_range_for_funnel) + remaining_range_for_objects + 1,
+                        y_height_without_padding_area,
+                    ],
+                ]
+                ### WALLS
+                free_range_list = [
+                    [1, maximum_needed_range_for_funnel],
+                    [
+                        maximum_needed_range_for_funnel + remaining_range_for_objects + 1,
+                        (2 * maximum_needed_range_for_funnel) + remaining_range_for_objects,
+                    ],
+                ]
+            else:
+                ### OBJECTS
+                object_range_list = [
+                    [1, remaining_range_for_objects],
+                    [
+                        remaining_range_for_objects + maximum_needed_range_for_funnel + 1,
+                        (remaining_range_for_objects * 2) + maximum_needed_range_for_funnel,
+                    ],
+                ]
+                ### WALLS
+                free_range_list = [
+                    [remaining_range_for_objects + 1, remaining_range_for_objects + maximum_needed_range_for_funnel],
+                    [
+                        (remaining_range_for_objects * 2) + maximum_needed_range_for_funnel + 1,
+                        y_height_without_padding_area,
+                    ],
+                ]
     else:
         # If there are no funnels, objects can be placed everywhere
         object_range_list = [
