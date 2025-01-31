@@ -466,7 +466,9 @@ def get_next_position_observation_moonlander(observations: torch.Tensor, actions
     Returns:
         next observation in the moonlander environment without input noise
     """
-    next_observation_without_input_noise = observations.clone().detach()
+    next_observation_without_input_noise = observations.clone().detach().to(device)
+    if isinstance(actions, np.ndarray):
+        actions = torch.from_numpy(actions).clone().detach().squeeze(dim=0).to(device)
     
     # loop through every observation in batch
     for index, obs in enumerate(observations):
