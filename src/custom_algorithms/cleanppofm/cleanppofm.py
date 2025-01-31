@@ -14,17 +14,16 @@ from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback
 from stable_baselines3.common.vec_env import VecEnv
 from torch.nn import functional as F
 
-from custom_algorithms.cleanppofm.forward_model import ProbabilisticSimpleForwardNet, \
+from src.custom_algorithms.cleanppofm.forward_model import ProbabilisticSimpleForwardNet, \
     ProbabilisticForwardNetPositionPrediction, ProbabilisticSimpleForwardNetIncludingReward, \
     ProbabilisticForwardNetPositionPredictionIncludingReward
-from custom_algorithms.cleanppofm.utils import flatten_obs, get_position_and_object_positions_of_observation, \
-    get_next_observation_gridworld, reward_estimation, calculate_prediction_error, \
-    get_next_position_observation_moonlander, calculate_difficulty, normalize_rewards, get_next_whole_observation, \
-    get_observation_of_position_and_object_positions
-from custom_algorithms.cleanppofm.agent import Agent
-from custom_envs.moonlander.helper_functions import calculate_gaussian_reward
-from utils.custom_buffer import CustomDictRolloutBuffer as DictRolloutBuffer
-from utils.custom_buffer import CustomRolloutBuffer as RolloutBuffer
+from src.custom_algorithms.cleanppofm.utils import flatten_obs, get_position_and_object_positions_of_observation, \
+    calculate_prediction_error, get_next_position_observation_moonlander, calculate_need_for_control, normalize_rewards, \
+    get_next_whole_observation, get_observation_of_position_and_object_positions, get_collected_objects
+from src.custom_algorithms.cleanppofm.agent import Agent
+from src.custom_envs.moonlander.helper_functions import calculate_gaussian_reward
+from src.utils.custom_buffer import CustomDictRolloutBuffer as DictRolloutBuffer
+from src.utils.custom_buffer import CustomRolloutBuffer as RolloutBuffer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -32,7 +31,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class CLEANPPOFM:
     """
     Proximal Policy Optimization algorithm (PPO) (clip version) with a forward model (FM).
-    By now, only implemented for gridworld and moonlander environments!
+    By now, only implemented for moonlander environments!
     NOT TESTED WITH OTHER ENVIRONMENTS!
     This is a simplified one-file version of the stable-baselines3 PPO implementation.
 
@@ -104,7 +103,7 @@ class CLEANPPOFM:
         self.n_envs = env.num_envs
         self.env = env
         # use gymnasium logger for yellow colored logging
-        gymnasium_logger.warn("This algorithm is only tested under the Gridworld and Moonlander Envs")
+        gymnasium_logger.warn("This algorithm is only tested under the Moonlander Envs")
 
         if isinstance(self.action_space, spaces.Box):
             assert np.all(
@@ -173,7 +172,7 @@ class CLEANPPOFM:
         # get the env name as described here: https://github.com/DLR-RM/stable-baselines3/blob/master/docs/guide/vec_envs.rst
         # Note: you should use vec_env.env_method("get_wrapper_attr", "attribute_name") in Gymnasium v1.0
         self.env_name = self.env.env_method("get_wrapper_attr", "name")[0]
-        if not (self.env_name == "GridWorldEnv" or self.env_name == "MoonlanderWorldEnv"):
+        if not self.env_name == "MoonlanderWorldEnv":
             raise NotImplementedError("This algorithm is not implemented for this environment yet!")
 
         # position predicting only possible for moonlander env
@@ -188,6 +187,12 @@ class CLEANPPOFM:
             self.fm_network = fm_cls(self.env, self.fm_parameters).to(device)
         else:
             self.fm_network = fm_cls(self.env, self.fm_parameters, self.maximum_number_of_objects).to(device)
+
+        self.observation_height = self.env.env_method("get_wrapper_attr", "observation_height")[0]
+        self.observation_width = self.env.env_method("get_wrapper_attr", "observation_width")[0]
+        self.agent_size = self.env.env_method("get_wrapper_attr", "size")[0]
+        self.task = self.env.env_method("get_wrapper_attr", "task")[0]
+
         self.fm_optimizer = torch.optim.Adam(
             self.fm_network.parameters(),
             # FIXME
@@ -329,7 +334,6 @@ class CLEANPPOFM:
         No changes were made by me.
         """
         iteration = 0
-        print("resetting env")
         self._last_obs = self.env.reset()
         callback.init_callback(self)
         callback.on_training_start(locals(), globals())
@@ -408,7 +412,7 @@ class CLEANPPOFM:
             elif isinstance(self.action_space, spaces.Discrete):
                 clipped_actions = actions[0]
 
-            new_obs, rewards, dones, infos, prediction_error, difficulty, soc, reward_with_future_reward_estimation_corrective, _, _ = self.step_in_env(
+            new_obs, rewards, dones, infos, prediction_error, need_for_control, soc, reward_with_future_reward_estimation_corrective, _, _, new_positions = self.step_in_env(
                 actions=clipped_actions, forward_normal=forward_normal)
 
             # FIXME: is it possible that multiple actions are taken here?
@@ -422,8 +426,8 @@ class CLEANPPOFM:
                                         reward_with_future_reward_estimation_corrective.mean())
             self.logger.record("train/prediction_error", prediction_error)
             self.logger.record_mean("train/prediction_error_mean", prediction_error)
-            self.logger.record("train/difficulty", difficulty)
-            self.logger.record_mean("train/difficulty_mean", difficulty)
+            self.logger.record("train/need_for_control", need_for_control)
+            self.logger.record_mean("train/need_for_control_mean", need_for_control)
             self.logger.record("train/soc", soc)
             self.logger.record_mean("train/soc_mean", soc)
             self.logger.record("train/rollout_rewards_step", float(rewards.mean()))
@@ -438,9 +442,6 @@ class CLEANPPOFM:
                                    float(infos[0]["pos_neg"]["pos"][0] + infos[0]["pos_neg"]["neg"][0]))
                 self.logger.record("rollout_number_of_crashed_or_collected_objects",
                                    float(infos[0]["number_of_crashed_or_collected_objects"]))
-            # gridworld env
-            if "self.input_noise_is_applied_in_this_episode" in infos[0].keys():
-                self.logger.record("input_noise_applied", infos[0]["self.input_noise_is_applied_in_this_episode"])
             # meta env
             if "dodge" in infos[0].keys():
                 self.logger.record("dodge_gaussian_reward", infos[0]["dodge"]["gaussian"])
@@ -468,10 +469,7 @@ class CLEANPPOFM:
             for idx, done in enumerate(dones):
                 if done and infos[idx].get("terminal_observation") is not None:
                     # fixme: what about multiple elements in the list?
-                    if self.env_name == "GridWorldEnv":
-                        temporary_new_obs = OrderedDict(infos[idx]["terminal_observation"])
-                    elif self.env_name == "MoonlanderWorldEnv":
-                        temporary_new_obs = infos[idx]["terminal_observation"]
+                    temporary_new_obs = infos[idx]["terminal_observation"]
 
                     # TimeLimit.truncated = truncated and not terminated --> when episode is done because of time limit (steps)
                     if infos[idx].get("TimeLimit.truncated", False):
@@ -507,25 +505,16 @@ class CLEANPPOFM:
         with torch.no_grad():
             if self.model_based:
                 # fixme: this is hardcoded, it does not work when we have a non-deterministic forward model because we calculate the next obs at two places
-                observation_height = self.env.env_method("get_wrapper_attr", "observation_height")[0]
-                observation_width = self.env.env_method("get_wrapper_attr", "observation_width")[0]
-                agent_size = self.env.env_method("get_wrapper_attr", "size")[0]
-                task = self.env.env_method("get_wrapper_attr", "task")[0]
                 comb_obs = torch.tensor(new_obs).clone().detach()
-                comb_obj_positions = get_position_and_object_positions_of_observation(comb_obs,
-                                                                                      maximum_number_of_objects=self.maximum_number_of_objects,
-                                                                                      observation_width=observation_width,
-                                                                                      observation_height=observation_height,
-                                                                                      agent_size=agent_size)
 
                 # Convert comb_obj_positions to a tensor
-                cop_tensor = torch.tensor(comb_obj_positions).float()
+                cop_tensor = torch.tensor(new_positions).float()
 
                 obs_after_every_action = comb_obs.clone().detach()
                 rewards_for_every_action = {}
-                if task == "dodge":
+                if self.task == "dodge":
                     task_type = "obstacle"
-                elif task == "collect":
+                elif self.task == "collect":
                     task_type = "coin"
 
                 for i in range(0, env.action_space.n):
@@ -537,61 +526,29 @@ class CLEANPPOFM:
                     next_positions = get_next_position_observation_moonlander(
                         observations=cop_tensor,
                         actions=current_action_hardcoded[0],
-                        observation_width=observation_width,
-                        observation_height=observation_height,
-                        agent_size=agent_size,
-                        maximum_number_of_objects=self.maximum_number_of_objects)
+                        observation_width=self.observation_width,
+                        agent_size=self.agent_size)
 
                     obs_after_action = get_observation_of_position_and_object_positions(
                         # agent_and_object_positions=nra_mean,
                         agent_and_object_positions=next_positions,
-                        observation_height=observation_height,
-                        observation_width=observation_width,
-                        agent_size=agent_size, task=task)
+                        observation_height=self.observation_height,
+                        observation_width=self.observation_width,
+                        agent_size=self.agent_size, task=self.task)
 
                     # calculate reward for new obs
                     x_position_of_agent = int(
-                        min(max(agent_size, next_positions[0][0]), observation_width - agent_size + 1))
+                        min(max(self.agent_size, next_positions[0][0]), self.observation_width - self.agent_size + 1))
                     y_position_of_agent = int(next_positions[0][1])
 
-                    collected_objects = []
-                    for index in range(2, len(next_positions[0]), 2):
-                        if not (next_positions[0][index] == 0 and next_positions[0][index + 1] == 0):
-
-                            if (
-                                    (
-                                            ((next_positions[0][index] - 1) == (x_position_of_agent - 1))
-                                            or ((next_positions[0][index] - 1) == x_position_of_agent)
-                                            or ((next_positions[0][index] - 1) == (x_position_of_agent + 1))
-                                            or (next_positions[0][index] == (x_position_of_agent - 1))
-                                            or (next_positions[0][index] == x_position_of_agent)
-                                            or (next_positions[0][index] == (x_position_of_agent + 1))
-                                            or ((next_positions[0][index] + 1) == (x_position_of_agent - 1))
-                                            or ((next_positions[0][index] + 1) == x_position_of_agent)
-                                            or ((next_positions[0][index] + 1) == (x_position_of_agent + 1))
-                                    )
-                                    and
-                                    (
-                                            ((next_positions[0][index + 1] - 1) == (y_position_of_agent - 1))
-                                            or ((next_positions[0][index + 1] - 1) == y_position_of_agent)
-                                            or ((next_positions[0][index + 1] - 1) == (y_position_of_agent + 1))
-                                            or (next_positions[0][index + 1] == (y_position_of_agent - 1))
-                                            or (next_positions[0][index + 1] == y_position_of_agent)
-                                            or (next_positions[0][index + 1] == (y_position_of_agent + 1))
-                                            or ((next_positions[0][index + 1] + 1) == (y_position_of_agent - 1))
-                                            or ((next_positions[0][index + 1] + 1) == y_position_of_agent)
-                                            or ((next_positions[0][index + 1] + 1) == (y_position_of_agent + 1))
-                                    )
-                            ):
-                                collected_objects.append(
-                                    {'x': int(next_positions[0][index]),
-                                     'y': int(next_positions[0][index + 1]),
-                                     'size': agent_size})
+                    collected_objects = get_collected_objects(observation_positions=next_positions,
+                                                              agent_size=self.agent_size,
+                                                              observation_width=self.observation_width)
 
                     rewards_for_every_action[i] = [calculate_gaussian_reward(
-                        state=np.array(row).reshape(observation_height, observation_width + 2),
+                        state=np.array(row).reshape(self.observation_height, self.observation_width + 2),
                         collected_objects=collected_objects,
-                        agent_size=agent_size,
+                        agent_size=self.agent_size,
                         task_type=task_type,
                         current_reward_function="gaussian",
                         x_position_of_agent=x_position_of_agent,
@@ -632,16 +589,12 @@ class CLEANPPOFM:
             observations = flatten_obs(observations)
             next_observations = flatten_obs(next_observations)
 
-        observation_height = self.env.env_method("get_wrapper_attr", "observation_height")[0]
-        observation_width = self.env.env_method("get_wrapper_attr", "observation_width")[0]
-        agent_size = self.env.env_method("get_wrapper_attr", "size")[0]
-
         ##### FORMAT OBSERVATION FOR FORWARD MODEL #####
         # 1. with or without reward (line 572)
         # 2. with or without position predicting (moonlander)
         # 3. with or without input noise
 
-        # gridworld or moonlander without position predicting
+        # moonlander without position predicting
         if not self.position_predicting:
             next_observations_duplicated = copy.deepcopy(next_observations)
 
@@ -649,11 +602,8 @@ class CLEANPPOFM:
             if self.env_name == "MoonlanderWorldEnv" and not self.fm_trained_with_input_noise:
                 next_observations_duplicated = get_next_whole_observation(next_observations=next_observations,
                                                                           actions=actions,
-                                                                          observation_width=observation_width,
-                                                                          observation_height=observation_height)
-            elif self.env_name == "GridWorldEnv" and not self.fm_trained_with_input_noise:
-                next_observations_duplicated = get_next_observation_gridworld(observations=observations,
-                                                                              actions=actions)
+                                                                          observation_width=self.observation_width,
+                                                                          observation_height=self.observation_height)
 
             next_observations_formatted = next_observations_duplicated if not self.reward_predicting else torch.cat(
                 (next_observations, rewards), dim=1)
@@ -662,22 +612,20 @@ class CLEANPPOFM:
             # get position out of observation
             observations = get_position_and_object_positions_of_observation(observations,
                                                                             maximum_number_of_objects=self.maximum_number_of_objects,
-                                                                            observation_width=observation_width,
-                                                                            observation_height=observation_height,
-                                                                            agent_size=agent_size)
+                                                                            observation_width=self.observation_width,
+                                                                            observation_height=self.observation_height,
+                                                                            agent_size=self.agent_size)
             if not self.fm_trained_with_input_noise:
                 next_observations_formatted = get_next_position_observation_moonlander(observations=observations,
                                                                                        actions=actions,
-                                                                                       observation_width=observation_width,
-                                                                                       observation_height=observation_height,
-                                                                                       agent_size=agent_size,
-                                                                                       maximum_number_of_objects=self.maximum_number_of_objects)
+                                                                                       observation_width=self.observation_width,
+                                                                                       agent_size=self.agent_size)
             else:
                 next_observations_formatted = get_position_and_object_positions_of_observation(next_observations,
                                                                                                maximum_number_of_objects=self.maximum_number_of_objects,
-                                                                                               observation_width=observation_width,
-                                                                                               observation_height=observation_height,
-                                                                                               agent_size=agent_size)
+                                                                                               observation_width=self.observation_width,
+                                                                                               observation_height=self.observation_height,
+                                                                                               agent_size=self.agent_size)
             if self.reward_predicting:
                 next_observations_formatted = torch.cat((next_observations_formatted, rewards), dim=1)
 
@@ -732,10 +680,10 @@ class CLEANPPOFM:
                 position_predicting=self.position_predicting, maximum_number_of_objects=self.maximum_number_of_objects)
         return action.cpu().numpy(), state, forward_model_prediction_normal_distribution
 
-    def step_in_env(self, actions, forward_normal, use_reward_of_env: bool = False,
+    def step_in_env(self, actions, forward_normal,
                     # for the moment only for meta env
-                    use_prediction_error: bool = True, use_difficulty: bool = True) -> tuple[
-        np.ndarray, float, bool, dict, float, float, float, float, int, float]:
+                    use_prediction_error: bool = True, use_need_for_control: bool = True) -> tuple[
+        np.ndarray, float, bool, dict, float, float, float, float, int, float, torch.tensor]:
         """
         Step in the environment with the given actions and the forward model prediction.
         This includes the displaying of the forward model prediction and the calculation of the prediction error.
@@ -743,9 +691,8 @@ class CLEANPPOFM:
         Args:
             actions: action to take in the environment
             forward_normal: prediction of the forward model (normal distribution)
-            use_reward_of_env: if the reward of the environment should be used to calculate the reward estimation or from the forward model prediction
             use_prediction_error: if the prediction error should be used to calculate the SoC
-            use_difficulty: if the difficulty should be used to calculate the SoC
+            use_need_for_control: if the need_for_control should be used to calculate the SoC
 
         Returns:
             new_obs: new observation
@@ -753,11 +700,12 @@ class CLEANPPOFM:
             dones: if the episode is done
             infos: additional information
             prediction_error: calculated prediction error
-            difficulty: calculated difficulty
+            need_for_control: calculated need_for_control
             soc: calculated sense of control
             reward_with_future_reward_estimation_corrective: reward corrected by prediction error
             input_noise: applied input noise
             rewards_normalized: normalized rewards
+            new_positions: new positions of the new observation of the agent and objects
         """
         ##### DISPLAYING THE FORWARD MODEL PREDICTION #####
         # modify the env attributes as described here:
@@ -791,34 +739,37 @@ class CLEANPPOFM:
         # dones = terminated or truncated
         new_obs, rewards, dones, infos = self.env.step(actions)
 
+        new_positions = get_position_and_object_positions_of_observation(obs=torch.tensor(new_obs, device=device),
+                                                                         maximum_number_of_objects=self.maximum_number_of_objects,
+                                                                         observation_width=self.observation_width,
+                                                                         observation_height=self.observation_height,
+                                                                         agent_size=self.agent_size)
+
         prediction_error = 0
-        difficulty = 0
+        need_for_control = 0
         if use_prediction_error:
             ##### CALCULATING PREDICTION ERROR #####
-            prediction_error = calculate_prediction_error(env_name=self.env_name, env=self.env,
-                                                          next_obs=torch.tensor(new_obs, device=device),
+            prediction_error = calculate_prediction_error(env_name=self.env_name,
+                                                          next_obs_positions=new_positions,
                                                           forward_model_prediction_normal_distribution=forward_normal,
-                                                          maximum_number_of_objects=self.maximum_number_of_objects)
-        if use_difficulty:
-            ##### CALCULATING DIFFICULTY #####
-            difficulty, summed_up_rewards_default = calculate_difficulty(env=self.env, policy=self.policy,
-                                                                         fm_network=self.fm_network,
-                                                                         logger=self.logger, env_name=self.env_name,
-                                                                         prediction_error=prediction_error,
-                                                                         position_predicting=self.position_predicting,
-                                                                         maximum_number_of_objects=self.maximum_number_of_objects,
-                                                                         reward_predicting=self.reward_predicting,
-                                                                         use_reward_of_env=use_reward_of_env)
-
+                                                          first_possible_x_position=self.agent_size,
+                                                          last_possible_x_position=self.observation_width - self.agent_size + 1)
+        if use_need_for_control:
+            ##### CALCULATING NEED FOR CONTROL #####
+            need_for_control, summed_up_rewards_default = calculate_need_for_control(env=self.env, policy=self.policy,
+                                                                                     fm_network=self.fm_network,
+                                                                                     logger=self.logger,
+                                                                                     position_predicting=self.position_predicting,
+                                                                                     prediction_error=prediction_error,
+                                                                                     maximum_number_of_objects=self.maximum_number_of_objects)
         ##### CALCULATING SOC #####
         # prediction error is high, if the prediction and actual observation do not match
-        # difficulty is high if the rewards of the optimal trajectory are quite different to the rewards of the default trajectory
-        # soc = mean of prediction error and difficulty
-        self.soc = 1 - ((prediction_error + difficulty) / 2)
+        # need for control is high if the rewards of the optimal trajectory are quite different to the rewards of the default trajectory
+        # soc = mean of prediction error and need_for_control
+        self.soc = 1 - ((prediction_error + need_for_control) / 2)
 
-        task = self.env.env_method("get_wrapper_attr", "task")[0]
         # normalize actual reward
-        rewards_normalized = normalize_rewards(task=task, absolute_reward=rewards)
+        rewards_normalized = normalize_rewards(task=self.task, absolute_reward=rewards)
         # add normalized reward to summed up rewards + normalize by mean
         # FIXME: changed this!!!
         # summed_up_rewards_default = (rewards_normalized + summed_up_rewards_default) / 2
@@ -832,7 +783,7 @@ class CLEANPPOFM:
         reward_estimation = (rewards_normalized + self.soc) / 2
 
         # input noise only for debugging
-        return new_obs, rewards, dones, infos, prediction_error, difficulty, self.soc, reward_estimation, input_noise, rewards_normalized
+        return new_obs, rewards, dones, infos, prediction_error, need_for_control, self.soc, reward_estimation, input_noise, rewards_normalized, new_positions
 
     def save(
             self,
@@ -845,7 +796,6 @@ class CLEANPPOFM:
             del data[to_exclude]
         # save network parameters
         data["_policy"] = self.policy.state_dict()
-        print("save", self.policy.state_dict())
         # changed to save the best forward model
         data["_fm"] = self.best_model
         torch.save(data, path)

@@ -4,11 +4,13 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import gymnasium as gym
 import numpy as np
 import torch
+import pandas as pd
+import os
 
 from stable_baselines3.common import base_class
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
 
-from custom_algorithms.cleanppofm.utils import get_position_and_object_positions_of_observation, \
+from src.custom_algorithms.cleanppofm.utils import get_position_and_object_positions_of_observation, \
     get_observation_of_position_and_object_positions
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -92,7 +94,6 @@ def evaluate_policy(
     current_rewards = np.zeros(n_envs)
     current_lengths = np.zeros(n_envs, dtype="int")
     current_number_of_crashed_or_collected_objects = np.zeros(n_envs, dtype="int")
-    print("reset")
     observations = env.reset()
     states = None
 
@@ -111,20 +112,16 @@ def evaluate_policy(
         observation_height = env.env_method("get_wrapper_attr", "observation_height")[0]
         agent_size = env.env_method("get_wrapper_attr", "size")[0]
         position = get_position_and_object_positions_of_observation(obs=torch.tensor(observations),
+                                                                    maximum_number_of_objects=model.maximum_number_of_objects,
                                                                     observation_width=observation_width,
                                                                     observation_height=observation_height,
                                                                     agent_size=agent_size)[0][0]
         predicted_x_position = min(max(1, forward_normal.mean.cpu().detach().numpy()[0][0]), 10)
         expected_new_positon = min(max(1, position + (actions[0] - 1)), 10)
 
-        observations, rewards, dones, infos, prediction_error, difficulty, soc, reward_with_future_reward_estimation_corrective, _, _ = model.step_in_env(
+        observations, rewards, dones, infos, prediction_error, need_for_control, soc, reward_with_future_reward_estimation_corrective, _, _, new_positions = model.step_in_env(
             actions=actions,
             forward_normal=forward_normal)
-
-        new_position = get_position_and_object_positions_of_observation(torch.tensor(observations),
-                                                                        observation_width=observation_width,
-                                                                        observation_height=observation_height,
-                                                                        agent_size=agent_size)[0][0]
 
         if model.reward_predicting:
             logger.record("eval/predicted_rewards", float(forward_normal.mean[:, -1].mean()))
@@ -135,15 +132,15 @@ def evaluate_policy(
                                reward_with_future_reward_estimation_corrective.mean())
         logger.record("eval/prediction_error", prediction_error)
         logger.record_mean("eval/prediction_error_mean", prediction_error)
-        logger.record("eval/difficulty", difficulty)
-        logger.record_mean("eval/difficulty_mean", difficulty)
+        logger.record("eval/need_for_control", need_for_control)
+        logger.record_mean("eval/need_for_control_mean", need_for_control)
         logger.record("eval/soc", soc)
         logger.record_mean("eval/soc_mean", soc)
         logger.record("eval/action", actions[0])
         logger.record("eval/last_position", position)
         logger.record("eval/expected_new_position", expected_new_positon)
         logger.record("eval/predicted_x_position", predicted_x_position)
-        logger.record("eval/new_position", new_position)
+        logger.record("eval/new_positions", new_positions)
         # already logged in custom callback
         logger.record("eval/rollout_rewards_step", float(rewards.mean()))
         logger.record_mean("eval/rollout_rewards_mean", float(rewards.mean()))
@@ -230,6 +227,7 @@ def evaluate_policy_meta_agent(
         # from us
         callback_metric_viz=None,
         logger=None,
+        counter=None,
 ) -> Union[Tuple[float, float], Tuple[List[float], List[int]]]:
     """
     From the stable-baselines3 evaluation implementation.
@@ -263,6 +261,7 @@ def evaluate_policy_meta_agent(
         per episode will be returned instead of the mean.
     :param warn: If True (default), warns user about lack of a Monitor wrapper in the
         evaluation environment.
+    :param counter: Counter to name csv files for analysis
     :return: Mean reward per episode, std of reward per episode.
         Returns ([float], [int]) when ``return_episode_rewards`` is True, first
         list containing per-episode rewards and second containing per-episode lengths
@@ -288,11 +287,19 @@ def evaluate_policy_meta_agent(
     n_envs = env.num_envs
     episode_rewards = []
     episode_lengths = []
+    first_step = True
+
+    dict_avoid = {"timesteps": [], "player_pos": [], "active_task": [], "input_noise": [], "current_reward": [],
+                  "list_of_visible_objects": [], "number_of_visible_objects": [], "distance_to_closest_object": []}
+
+    dict_collect = {"timesteps": [], "player_pos": [], "active_task": [], "input_noise": [], "current_reward": [],
+                    "list_of_visible_objects": [], "number_of_visible_objects": [], "distance_to_closest_object": []}
 
     episode_counts = np.zeros(n_envs, dtype="int")
     # Divides episodes among different sub environments in the vector as evenly as possible
     episode_count_targets = np.array([(n_eval_episodes + i) // n_envs for i in range(n_envs)], dtype="int")
 
+    duration = 0
     current_rewards = np.zeros(n_envs)
     current_lengths = np.zeros(n_envs, dtype="int")
     observations = env.reset()
@@ -300,10 +307,17 @@ def evaluate_policy_meta_agent(
     episode_starts = np.ones((env.num_envs,), dtype=bool)
 
     ### from me
+    last_action = np.array([0])
     current_number_of_crashed_objects = np.zeros(n_envs, dtype="int")
     current_number_of_collected_objects = np.zeros(n_envs, dtype="int")
+    current_number_of_switches = np.zeros(n_envs, dtype="int")
+    current_number_of_dodge_actions = np.zeros(n_envs, dtype="int")
+    current_number_of_collect_actions = np.zeros(n_envs, dtype="int")
     episode_number_of_crashed_objects = []
     episode_number_of_collected_objects = []
+    episode_number_of_switches = []
+    episode_number_of_dodge_actions = []
+    episode_number_of_collect_actions = []
     ###
 
     while (episode_counts < episode_count_targets).any():
@@ -386,18 +400,91 @@ def evaluate_policy_meta_agent(
         # print("positions_of_new_observation", positions_of_new_observation)
 
         ### custom code
-        # EXAMPLE INFOS:
-        # [{'info_dodge': [{'simple': 10, 'gaussian': 10, 'pos_neg': {'pos': [0], 'neg': [0]}, 'number_of_crashed_or_collected_objects': 0, 'TimeLimit.truncated': False}],
-        # 'info_collect': [{'simple': 0, 'gaussian': 0, 'pos_neg': {'pos': [0], 'neg': [0]}, 'number_of_crashed_or_collected_objects': 0, 'TimeLimit.truncated': False}],
-        # 'reward_dodge': array([0.96], dtype=float32), 'reward_collect': 0.45,
-        # 'action_meta': 0, 'dodge_position_before': 1, 'collect_position_before': 5,
-        # 'dodge_action': array([0]), 'collect_action': 1, 'input_noise': 2,
-        # 'dodge_next_position': 2, 'collect_next_position': 5,
-        # 'predicted_dodge_next_position': 1, 'predicted_collect_next_position': 5,
-        # 'prediction_error': 0.11068782380292025, 'difficulty': array([0.01], dtype=float32),
-        # 'SoC_dodge': array([0.94], dtype=float32), 'SoC_collect': 0.9, 'TimeLimit.truncated': False}]
 
         info_dict = infos[0]
+
+        noise = info_dict['input_noise']
+
+        if first_step:
+            difficulty_dodge = info_dict['difficulty_dodge']
+            difficulty_collect = info_dict['difficulty_collect']
+            if noise == 0:
+                input_noise = 'no'
+            else:
+                input_noise = 'yes'
+            first_step = False
+
+        list_of_visible_objects_dodge = []
+        list_of_visible_objects_collect = []
+
+        for i in range(1, info_dict["objects_dodge"].size(dim=1), 2):
+            x = info_dict["objects_dodge"][0, i - 1]
+            y = info_dict["objects_dodge"][0, i]
+            temp_list = [x.item(), y.item()]
+            list_of_visible_objects_dodge.append(temp_list)
+
+        for i in range(1, info_dict["objects_collect"].size(dim=1), 2):
+            x = info_dict["objects_collect"][0, i - 1]
+            y = info_dict["objects_collect"][0, i]
+            temp_list = [x.item(), y.item()]
+            list_of_visible_objects_collect.append(temp_list)
+
+        # remove player position
+        player_dodge = list_of_visible_objects_dodge.pop(0)
+        player_collect = list_of_visible_objects_collect.pop(0)
+
+        # remove entrys without objects
+        list_of_visible_objects_dodge = [i for i in list_of_visible_objects_dodge if i != [0.0, 0.0]]
+        list_of_visible_objects_collect = [i for i in list_of_visible_objects_collect if i != [0.0, 0.0]]
+
+        distances_dodge = []
+        distance_to_closest_object_dodge = 0
+        for object in list_of_visible_objects_dodge:
+            distances_dodge.append(np.linalg.norm(np.array(player_dodge) - np.array(object)))
+        if distances_dodge:
+            distance_to_closest_object_dodge = min(distances_dodge)
+        else:
+            distance_to_closest_object_dodge = np.nan
+
+        distances_collect = []
+        distance_to_closest_object_collect = 0
+        for object in list_of_visible_objects_collect:
+            distances_collect.append(np.linalg.norm(np.array(player_collect) - np.array(object)))
+        if distances_collect:
+            distance_to_closest_object_collect = min(distances_collect)
+        else:
+            distance_to_closest_object_collect = np.nan
+
+        dict_avoid["timesteps"].append(duration)
+        dict_collect["timesteps"].append(duration)
+
+        duration = duration + 1
+
+        dict_avoid["player_pos"].append(info_dict['dodge_position_before'])
+        dict_collect["player_pos"].append(info_dict['collect_position_before'])
+
+        dict_avoid["input_noise"].append(noise)
+        dict_collect["input_noise"].append(noise)
+
+        dict_avoid["current_reward"].append(info_dict['reward_dodge'])
+        dict_collect["current_reward"].append(info_dict['reward_collect'])
+
+        if info_dict['action_meta'] == 0:
+            active_task = True
+        else:
+            active_task = False
+        dict_avoid["active_task"].append(active_task)
+        dict_collect["active_task"].append(not active_task)
+
+        dict_avoid["list_of_visible_objects"].append(list_of_visible_objects_dodge)
+        dict_collect["list_of_visible_objects"].append(list_of_visible_objects_collect)
+
+        dict_avoid["number_of_visible_objects"].append(len(list_of_visible_objects_dodge))
+        dict_collect["number_of_visible_objects"].append(len(list_of_visible_objects_collect))
+
+        dict_avoid["distance_to_closest_object"].append(distance_to_closest_object_dodge)
+        dict_collect["distance_to_closest_object"].append(distance_to_closest_object_collect)
+
         logger.record("eval/action_meta", info_dict["action_meta"])
         logger.record("eval/dodge_position_before", info_dict["dodge_position_before"])
         logger.record("eval/collect_position_before", info_dict["collect_position_before"])
@@ -408,8 +495,10 @@ def evaluate_policy_meta_agent(
         logger.record("eval/collect_next_position", info_dict["collect_next_position"])
         logger.record("eval/predicted_dodge_next_position", info_dict["predicted_dodge_next_position"])
         logger.record("eval/predicted_collect_next_position", info_dict["predicted_collect_next_position"])
-        logger.record("eval/prediction_error", info_dict["prediction_error"])
-        logger.record("eval/difficulty", info_dict["difficulty"])
+        logger.record("eval/prediction_error_dodge", info_dict["prediction_error_dodge"])
+        logger.record("eval/prediction_error_collect", info_dict["prediction_error_collect"])
+        logger.record("eval/need_for_control_dodge", info_dict["need_for_control_dodge"])
+        logger.record("eval/need_for_control_collect", info_dict["need_for_control_collect"])
         logger.record("eval/SoC_dodge", info_dict["SoC_dodge"])
         logger.record("eval/SoC_collect", info_dict["SoC_collect"])
         logger.record("eval/reward_dodge", info_dict["reward_dodge"])
@@ -418,26 +507,6 @@ def evaluate_policy_meta_agent(
                       info_dict["info_dodge"][0]["number_of_crashed_or_collected_objects"])
         logger.record("eval/collect_object_collected",
                       info_dict["info_collect"][0]["number_of_crashed_or_collected_objects"])
-        # print("eval/action_meta", info_dict["action_meta"])
-        # print("eval/dodge_position_before", info_dict["dodge_position_before"])
-        # print("eval/collect_position_before", info_dict["collect_position_before"])
-        # print("eval/dodge_action", info_dict["dodge_action"])
-        # print("eval/collect_action", info_dict["collect_action"])
-        # print("eval/input_noise", info_dict["input_noise"])
-        # print("eval/dodge_next_position", info_dict["dodge_next_position"])
-        # print("eval/collect_next_position", info_dict["collect_next_position"])
-        # print("eval/predicted_dodge_next_position", info_dict["predicted_dodge_next_position"])
-        # print("eval/predicted_collect_next_position", info_dict["predicted_collect_next_position"])
-        # print("eval/prediction_error", info_dict["prediction_error"])
-        # print("eval/difficulty", info_dict["difficulty"])
-        # print("eval/SoC_dodge", info_dict["SoC_dodge"])
-        # print("eval/SoC_collect", info_dict["SoC_collect"])
-        # print("eval/reward_dodge", info_dict["reward_dodge"])
-        # print("eval/reward_collect", info_dict["reward_collect"])
-        # print("eval/dodge_object_crashed_or_collected",
-        #       info_dict["info_dodge"][0]["number_of_crashed_or_collected_objects"])
-        # print("eval/collect_object_crashed_or_collected",
-        #       info_dict["info_collect"][0]["number_of_crashed_or_collected_objects"])
         logger.record("eval/rollout_rewards_step", float(rewards.mean()))
         logger.record_mean("eval/rollout_rewards_mean", float(rewards.mean()))
 
@@ -451,6 +520,14 @@ def evaluate_policy_meta_agent(
 
         current_number_of_crashed_objects += info_dict["info_dodge"][0]["number_of_crashed_or_collected_objects"]
         current_number_of_collected_objects += info_dict["info_collect"][0]["number_of_crashed_or_collected_objects"]
+        if not (last_action == actions).item():
+            current_number_of_switches += 1
+            last_action = actions
+        if actions == np.array([0]):
+            current_number_of_dodge_actions += 1
+        elif actions == np.array([1]):
+            current_number_of_collect_actions += 1
+
         ### until here
 
         current_rewards += rewards
@@ -487,6 +564,9 @@ def evaluate_policy_meta_agent(
                         ### from me
                         episode_number_of_crashed_objects.append(current_number_of_crashed_objects[i])
                         episode_number_of_collected_objects.append(current_number_of_collected_objects[i])
+                        episode_number_of_switches.append(current_number_of_switches[i])
+                        episode_number_of_dodge_actions.append(current_number_of_dodge_actions[i])
+                        episode_number_of_collect_actions.append(current_number_of_collect_actions[i])
                         ###
                     current_rewards[i] = 0
                     current_lengths[i] = 0
@@ -494,16 +574,34 @@ def evaluate_policy_meta_agent(
                     ### from me
                     current_number_of_crashed_objects[i] = 0
                     current_number_of_collected_objects[i] = 0
+                    current_number_of_switches[i] = 0
+                    current_number_of_dodge_actions[i] = 0
+                    current_number_of_collect_actions[i] = 0
 
         observations = new_observations
 
         if render:
             env.render()
 
+    dir_path = os.path.join(os.path.dirname(__file__), '..', '..', 'agent_data')
+
+    if not os.path.isdir(dir_path):
+        print("Creating directory for evaluation files of agent")
+        os.mkdir(dir_path)
+
+    avoid_df = pd.DataFrame.from_dict(data=dict_avoid)
+    collect_df = pd.DataFrame.from_dict(data=dict_collect)
+    avoid_df.to_csv(
+        dir_path + '/agent_' + difficulty_dodge + '_' + difficulty_collect + '_' + input_noise + '_' + str(
+            counter) + '_avoid.csv', index=False)
+    collect_df.to_csv(
+        dir_path + '/agent_' + difficulty_dodge + '_' + difficulty_collect + '_' + input_noise + '_' + str(
+            counter) + '_collect.csv', index=False)
+
     mean_reward = np.mean(episode_rewards)
     std_reward = np.std(episode_rewards)
     if reward_threshold is not None:
         assert mean_reward > reward_threshold, "Mean reward below threshold: " f"{mean_reward:.2f} < {reward_threshold:.2f}"
     if return_episode_rewards:
-        return episode_rewards, episode_lengths, episode_number_of_crashed_objects, episode_number_of_collected_objects
+        return episode_rewards, episode_lengths, episode_number_of_crashed_objects, episode_number_of_collected_objects, episode_number_of_switches, episode_number_of_dodge_actions, episode_number_of_collect_actions
     return mean_reward, std_reward

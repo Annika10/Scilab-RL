@@ -1,13 +1,19 @@
+import random
+import csv
+import ast
 import torch
+import math
 import gymnasium as gym
 from src.custom_envs.register_envs import register_custom_envs
-
 import warnings
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-
 import numpy as np
 
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
+from src.utils.animation_util import LiveAnimationPlot
+from custom_envs import ROOT_DIR
+
+from src.custom_algorithms.cleanppofm.utils import normalize_rewards
 
 
 # USE EVALUATE POLICY OF STABLE BASELINES 3 WITHOUT A MODEL BUT A HEURISTIC
@@ -21,6 +27,7 @@ def evaluate_policy(
         return_episode_rewards: bool = False,
         warn: bool = True,
         action_sequence: list[int] = None,
+        switch_per_NfC: bool = False
 ) -> Union[Tuple[float, float], Tuple[List[float], List[int]]]:
     """
     Runs policy for ``n_eval_episodes`` episodes and returns average reward.
@@ -50,6 +57,7 @@ def evaluate_policy(
     :param warn: If True (default), warns user about lack of a Monitor wrapper in the
         evaluation environment.
     :param action_sequence: List of actions to be executed in the environment
+    :param switch_per_NfC: If True, the next action is choosen based on the NfC of both tasks
     :return: Mean reward per episode, std of reward per episode.
         Returns ([float], [int]) when ``return_episode_rewards`` is True, first
         list containing per-episode rewards and second containing per-episode lengths
@@ -84,16 +92,37 @@ def evaluate_policy(
     current_lengths = np.zeros(n_envs, dtype="int")
     observations = env.reset()
     ##### MY CODE #####
+
+    if render:
+        animation = LiveAnimationPlot(
+            y_axis_labels=['need_for_control_dodge', 'need_for_control_collect', 'corrected_inactive_need_for_control',
+                           'placeholder'], env=env)
+
     # ndarray (1,)
-    if action_sequence is None:
+    if action_sequence is None or switch_per_NfC:
         actions = np.array([0])
+        new_observations = {"need_for_control_dodge": np.array([[0.00]]),
+                            "need_for_control_collect": np.array([[0.00]])}
 
     counter = 0
+    counter_without_switch = 0
 
+    last_action = np.array([0])
     current_number_of_crashed_objects = np.zeros(n_envs, dtype="int")
     current_number_of_collected_objects = np.zeros(n_envs, dtype="int")
+    current_number_of_switches = np.zeros(n_envs, dtype="int")
+    current_number_of_dodge_actions = np.zeros(n_envs, dtype="int")
+    current_number_of_collect_actions = np.zeros(n_envs, dtype="int")
     episode_number_of_crashed_objects = []
     episode_number_of_collected_objects = []
+    episode_number_of_switches = []
+    episode_number_of_dodge_actions = []
+    episode_number_of_collect_actions = []
+
+    need_for_control_dodge = []
+    need_for_control_collect = []
+    episode_reward_dodge = []
+    episode_reward_collect = []
     ###################
 
     episode_starts = np.ones((env.num_envs,), dtype=bool)
@@ -102,10 +131,45 @@ def evaluate_policy(
         # normally here would the model be used to predict the action
         # but we use a heuristic instead
         if action_sequence is None:
-            if actions[0] == 0:
-                actions = np.array([1])
+            if not switch_per_NfC:
+                if actions[0] == 0:
+                    actions = np.array([1])
+                else:
+                    actions = np.array([0])
             else:
-                actions = np.array([0])
+                # not weighting anymore but actual NfC -> weighting doesn't have an impact if the value is zero
+                # a⋅tan(b(x+c))+d
+                # a and d dependent on x (NfC)
+
+                # last active task was dodge
+                # last inactive task was collect
+                # print(f"Counter: {counter}")
+                # print(f"Need for control dodge: {new_observations['need_for_control_dodge']}")
+                # print(f"Need for control collect: {new_observations['need_for_control_collect']}")
+                # print(f"Action: {actions}")
+
+                if actions[0] == 0:
+                    a = -0.5 * new_observations["need_for_control_collect"] + 0.5
+                    d = 0.5 * new_observations["need_for_control_collect"] + 0.5
+
+                    corrected_inactive_need_for_control = a * math.tanh(0.25 * (counter_without_switch - (30 / 2))) + d
+                    # print(f"COLLECT: Corrected inactive need for control: {corrected_inactive_need_for_control}")
+
+                    if new_observations["need_for_control_dodge"] >= corrected_inactive_need_for_control:
+                        actions = np.array([0])
+                    else:
+                        actions = np.array([1])
+                else:
+                    a = -0.5 * new_observations["need_for_control_dodge"] + 0.5
+                    d = 0.5 * new_observations["need_for_control_dodge"] + 0.5
+
+                    corrected_inactive_need_for_control = a * math.tanh(0.25 * (counter_without_switch - (30 / 2))) + d
+                    # print(f"DODGE: Corrected inactive need for control: {corrected_inactive_need_for_control}")
+
+                    if new_observations["need_for_control_collect"] >= corrected_inactive_need_for_control:
+                        actions = np.array([1])
+                    else:
+                        actions = np.array([0])
         else:
             actions = np.array([action_sequence[counter]])
 
@@ -115,11 +179,24 @@ def evaluate_policy(
         current_lengths += 1
 
         ##### MY CODE #####
+        need_for_control_dodge.append(new_observations["need_for_control_dodge"])
+        need_for_control_collect.append(new_observations["need_for_control_collect"])
+
         counter += 1
 
         info_dict = infos[0]
         current_number_of_crashed_objects += info_dict["info_dodge"][0]["number_of_crashed_or_collected_objects"]
         current_number_of_collected_objects += info_dict["info_collect"][0]["number_of_crashed_or_collected_objects"]
+        if not (last_action == actions).item():
+            current_number_of_switches += 1
+            last_action = actions
+            counter_without_switch = 0
+        else:
+            counter_without_switch += 1
+        if actions == np.array([0]):
+            current_number_of_dodge_actions += 1
+        elif actions == np.array([1]):
+            current_number_of_collect_actions += 1
         ###################
 
         for i in range(n_envs):
@@ -154,6 +231,13 @@ def evaluate_policy(
                         ##### MY CODE #####
                         episode_number_of_crashed_objects.append(current_number_of_crashed_objects[i])
                         episode_number_of_collected_objects.append(current_number_of_collected_objects[i])
+                        episode_number_of_switches.append(current_number_of_switches[i])
+                        episode_number_of_dodge_actions.append(current_number_of_dodge_actions[i])
+                        episode_number_of_collect_actions.append(current_number_of_collect_actions[i])
+                        episode_reward_dodge.append(
+                            normalize_rewards(task="dodge", absolute_reward=info_dict["info_dodge"][0]["gaussian"]))
+                        episode_reward_collect.append(
+                            normalize_rewards(task="collect", absolute_reward=info_dict["info_collect"][0]["gaussian"]))
                         ###################
 
                     current_rewards[i] = 0
@@ -162,6 +246,9 @@ def evaluate_policy(
                     ##### MY CODE #####
                     current_number_of_crashed_objects[i] = 0
                     current_number_of_collected_objects[i] = 0
+                    current_number_of_switches[i] = 0
+                    current_number_of_dodge_actions[i] = 0
+                    current_number_of_collect_actions[i] = 0
                     ###################
 
         observations = new_observations
@@ -169,6 +256,21 @@ def evaluate_policy(
         if render:
             env.render()
 
+            ##### MY CODE #####
+            animation.x_data[0].append(counter)
+            animation.x_data[1].append(counter)
+            if switch_per_NfC:
+                animation.x_data[2].append(counter)
+                animation.x_data[3].append(counter)
+            animation.y_data[0].append(new_observations["need_for_control_dodge"])
+            animation.y_data[1].append(new_observations["need_for_control_collect"])
+            if switch_per_NfC:
+                animation.y_data[2].append(corrected_inactive_need_for_control)
+                animation.y_data[3].append(0)
+            animation.start_animation()
+            ###################
+
+    # animation.save_animation("animation")
     mean_reward = np.mean(episode_rewards)
     std_reward = np.std(episode_rewards)
 
@@ -177,13 +279,38 @@ def evaluate_policy(
     std_crashed_objects = np.std(episode_number_of_crashed_objects)
     mean_collected_objects = np.mean(episode_number_of_collected_objects)
     std_collected_objects = np.std(episode_number_of_collected_objects)
+    mean_number_of_switches = np.mean(episode_number_of_switches)
+    std_number_of_switches = np.std(episode_number_of_switches)
+    mean_number_of_dodge_actions = np.mean(episode_number_of_dodge_actions)
+    std_number_of_dodge_actions = np.std(episode_number_of_dodge_actions)
+    mean_number_of_collect_actions = np.mean(episode_number_of_collect_actions)
+    std_number_of_collect_actions = np.std(episode_number_of_collect_actions)
+    need_for_control_dodge_mean = np.mean(need_for_control_dodge)
+    need_for_control_dodge_std = np.std(need_for_control_dodge)
+    need_for_control_collect_mean = np.mean(need_for_control_collect)
+    need_for_control_collect_std = np.std(need_for_control_collect)
+    mean_dodge_reward = np.mean(episode_reward_dodge)
+    std_dodge_reward = np.std(episode_reward_collect)
+    mean_collect_reward = np.mean(episode_reward_collect)
+    std_collect_reward = np.std(episode_reward_collect)
 
     print(f"Mean reward: {mean_reward:.2f} +/- {std_reward:.2f}")
     print(f"Mean number of crashed objects: {mean_crashed_objects:.2f} +/- {std_crashed_objects:.2f}")
     print(f"Mean number of collected objects: {mean_collected_objects:.2f} +/- {std_collected_objects:.2f}")
+    print(f"Mean number of switches: {mean_number_of_switches:.2f} +/- {std_number_of_switches:.2f}")
+    print(f"Mean number of dodge actions: {mean_number_of_dodge_actions:.2f} +/- {std_number_of_dodge_actions:.2f}")
+    print(
+        f"Mean number of collect actions: {mean_number_of_collect_actions:.2f} +/- {std_number_of_collect_actions:.2f}")
     print(f"Episode rewards: {episode_rewards}")
     print(f"Episode number of crashed objects: {episode_number_of_crashed_objects}")
     print(f"Episode number of collected objects: {episode_number_of_collected_objects}")
+    print(f"Episode number of switches: {episode_number_of_switches}")
+    print(f"Episode number of dodge actions: {episode_number_of_dodge_actions}")
+    print(f"Episode number of collect actions: {episode_number_of_collect_actions}")
+    print(f"Mean need for control dodge: {need_for_control_dodge_mean:.8f} +/- {need_for_control_dodge_std:.8f}")
+    print(f"Mean need for control collect: {need_for_control_collect_mean:.8f} +/- {need_for_control_collect_std:.8f}")
+    print(f"Mean dodge reward: {mean_dodge_reward:.2f} +/- {std_dodge_reward:.2f}")
+    print(f"Mean collect reward: {mean_collect_reward:.2f} +/- {std_collect_reward:.2f}")
     ###################
 
     if reward_threshold is not None:
@@ -213,7 +340,7 @@ def calculate_action_sequence_of_means_of_frame_number_of_humans(human_mean_dodg
     Returns: action sequence in form of a list of integers (which are the actions)
 
     """
-    # in total we need ~500 steps in one episode
+    # in total, we need ~500 steps in one episode
     action_sequence = []
 
     while len(action_sequence) < (500 * n_eval_episodes):
@@ -228,32 +355,148 @@ def calculate_action_sequence_of_means_of_frame_number_of_humans(human_mean_dodg
     return action_sequence
 
 
+def calculate_action_sequence_for_switch_per_percentage(dodge_percentage: float, collect_percentage: float,
+                                                        n_eval_episodes: int) -> list[int]:
+    # in total, we need ~470 steps in one episode
+    action_sequence = []
+    for i in range(n_eval_episodes):
+        current_action_sequence = [0] * math.ceil(dodge_percentage * 470) + [1] * math.ceil(collect_percentage * 470)
+        random.shuffle(current_action_sequence)
+        action_sequence = action_sequence + current_action_sequence
+
+    return action_sequence
+
+
 if __name__ == "__main__":
+    filename_collect_easy = "collect_easy_object_list_30_times_40.csv"
+    filename_collect_hard = "collect_hard_object_list_30_times_40.csv"
+    filename_dodge_easy = "dodge_easy_object_list_30_times_40.csv"
+    filename_dodge_hard = "dodge_hard_object_list_30_times_40.csv"
+
+    list_of_filenames = [filename_collect_easy, filename_collect_hard, filename_dodge_easy, filename_dodge_hard]
+    dict_of_filename_to_object_dict_list = {}
+    for filename in list_of_filenames:
+        list_of_object_dict_lists = []
+        with open(ROOT_DIR / "moonlander" / filename, "r") as file:
+            lines = csv.reader(file)
+            for line in lines:
+                # first element is index
+                # second element is the object list
+                # form string to list of dictionaries
+                list_of_object_dict_lists.append(ast.literal_eval(line[1]))
+        dict_of_filename_to_object_dict_list[filename] = list_of_object_dict_lists
+
+    ### DEFINE BEFORE ###
+    # mode = "switch_every_step"
+    # meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
+    # dodge_best_model_name = "dodge_hard_no_input_noise_15_11_rl_model_best"
+    # config_file_name_dodge_asteroids = "config_dodge_hard.yaml"
+    # collect_best_model_name = "collect_hard_no_input_noise_15_11_rl_model_best"
+    # config_file_name_collect_asteroids = "config_collect_hard.yaml"
+    # two_collect_tasks = False
+    # dodge_list_of_object_dict_lists = None
+    # collect_list_of_object_dict_lists = None
+
+    # mode = "switch_as_humans"
+    # meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
+    # dodge_best_model_name = "dodge_hard_no_input_noise_15_11_rl_model_best"
+    # config_file_name_dodge_asteroids = "config_dodge_hard.yaml"
+    # collect_best_model_name = "collect_hard_no_input_noise_15_11_rl_model_best"
+    # config_file_name_collect_asteroids = "config_collect_hard.yaml"
+    # two_collect_tasks = False
+    # dodge_list_of_object_dict_lists = None
+    # collect_list_of_object_dict_lists = None
+
+    # mode = "switch_per_NfC"
+    # meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
+    # dodge_best_model_name = "collect_easy_no_input_noise_15_11_rl_model_best"
+    # config_file_name_dodge_asteroids = "config_collect_easy.yaml"
+    # collect_best_model_name = "collect_hard_no_input_noise_15_11_rl_model_best"
+    # config_file_name_collect_asteroids = "config_collect_hard.yaml"
+    # two_collect_tasks = True
+    # # dodge_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_easy_object_list_30_times_40.csv"]
+    # dodge_list_of_object_dict_lists = None
+    # # collect_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_hard_object_list_30_times_40.csv"]
+    # collect_list_of_object_dict_lists = None
+    # ranges_inverted = True
+
+    mode = "switch_per_percentage"
+    percentage_pairs = [[0.5, 0.5]]
+    # [0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
+    #               [0.35, 0.65], [0.4, 0.6], [0.45, 0.55], [0.5, 0.5], [0.55, 0.45],
+    # [0.6, 0.4], [0.65, 0.35],
+    # [0.7, 0.3], [0.75, 0.25], [0.8, 0.2], [0.85, 0.15], [0.9, 0.1], [0.95, 0.05], [1, 0]]
+    # chosen_percentage_pair = percentage_pairs[0]
+    meta_env_name = "MetaEnv-pretrained-human-subtask-modelbased-v0"
+    dodge_best_model_name = "collect_easy_no_input_noise_15_11_rl_model_best"
+    config_file_name_dodge_asteroids = "config_collect_easy.yaml"
+    collect_best_model_name = "collect_hard_no_input_noise_15_11_rl_model_best"
+    config_file_name_collect_asteroids = "config_collect_hard.yaml"
+    two_collect_tasks = True
+    dodge_list_of_object_dict_lists = None
+    collect_list_of_object_dict_lists = None
+    # dodge_list_of_object_dict_lists = dict_of_filename_to_object_dict_list[
+    #     "dodge_hard_object_list_30_times_40.csv"],
+    # collect_list_of_object_dict_lists = dict_of_filename_to_object_dict_list[
+    #     "collect_hard_object_list_30_times_40.csv"]
+    ranges_inverted = True
+
+    ####################
+
+    if mode not in ["switch_every_step", "switch_as_humans", "switch_per_NfC", "switch_per_percentage"]:
+        raise ValueError(
+            "Mode must be one of 'switch_every_step', 'switch_as_humans', 'switch_per_NfC', 'switch_per_percentage'")
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     register_custom_envs()
 
     n_eval_episodes = 10
 
     print("CURRENTLY EVALUATING HARD HARD INPUT NOISE")
-    print("The standard deviation of task switches frames is too high!")
-    # dodge: 2.788788 (± 5.240052)
-    # collect: 3.996455 (± 3.889264)
-    human_mean_dodge_switch_frame_number = 2.788788 * 10
-    human_std_dodge_switch_frame_number = 5.240052 * 10
-    human_mean_collect_switch_frame_number = 3.996455 * 10
-    human_std_collect_switch_frame_number = 3.889264 * 10
-
-    action_sequence = calculate_action_sequence_of_means_of_frame_number_of_humans(
-        human_mean_dodge_switch_frame_number=human_mean_dodge_switch_frame_number,
-        human_std_dodge_switch_frame_number=human_std_dodge_switch_frame_number,
-        human_mean_collect_switch_frame_number=human_mean_collect_switch_frame_number,
-        human_std_collect_switch_frame_number=human_std_collect_switch_frame_number, n_eval_episodes=n_eval_episodes)
 
     # Initialise the environment
-    env = gym.make("MetaEnv-pretrained-human-subtask-modelbased-v0", render_mode="human",
-                   dodge_best_model_name="dodge_MB_reward_included_rl_model_best",
-                   collect_best_model_name="collect_reward_in_mb_rl_model_best")
-    # mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=10, deterministic=True, render=True)
-    mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=n_eval_episodes, deterministic=True, render=True,
-                                              action_sequence=action_sequence)
+    env = gym.make(meta_env_name, render_mode="human", dodge_best_model_name=dodge_best_model_name,
+                   collect_best_model_name=collect_best_model_name,
+                   two_collect_task=two_collect_tasks, ranges_inverted=ranges_inverted,
+                   config_file_name_dodge_asteroids=config_file_name_dodge_asteroids,
+                   config_file_name_collect_asteroids=config_file_name_collect_asteroids,
+                   dodge_list_of_object_dict_lists=dodge_list_of_object_dict_lists,
+                   collect_list_of_object_dict_lists=collect_list_of_object_dict_lists
+                   )
+
+    if mode == "switch_every_step":
+        mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=10, deterministic=True, render=True)
+    elif mode == "switch_as_humans":
+        print("The standard deviation of task switches frames is too high!")
+        # dodge: 2.788788 (± 5.240052)
+        # collect: 3.996455 (± 3.889264)
+        human_mean_dodge_switch_frame_number = 2.788788 * 10
+        human_std_dodge_switch_frame_number = 5.240052 * 10
+        human_mean_collect_switch_frame_number = 3.996455 * 10
+        human_std_collect_switch_frame_number = 3.889264 * 10
+
+        action_sequence = calculate_action_sequence_of_means_of_frame_number_of_humans(
+            human_mean_dodge_switch_frame_number=human_mean_dodge_switch_frame_number,
+            human_std_dodge_switch_frame_number=human_std_dodge_switch_frame_number,
+            human_mean_collect_switch_frame_number=human_mean_collect_switch_frame_number,
+            human_std_collect_switch_frame_number=human_std_collect_switch_frame_number,
+            n_eval_episodes=n_eval_episodes)
+
+        mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=n_eval_episodes, deterministic=True,
+                                                  render=True, action_sequence=action_sequence)
+    elif mode == "switch_per_NfC":
+        mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=n_eval_episodes, deterministic=True,
+                                                  render=False, switch_per_NfC=True)
+    elif mode == "switch_per_percentage":
+        for percentage_pair in percentage_pairs:
+            print(
+                f"Currently evaluating dodge percentage: {percentage_pair[0]} and collect percentage: {percentage_pair[1]}")
+            action_sequence = calculate_action_sequence_for_switch_per_percentage(
+                dodge_percentage=percentage_pair[0], collect_percentage=percentage_pair[1],
+                n_eval_episodes=n_eval_episodes)
+            mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=n_eval_episodes, deterministic=True,
+                                                      render=False, action_sequence=action_sequence)
+    else:
+        raise ValueError("Mode must be one of 'switch_every_step', 'switch_as_humans', 'switch_per_NfC'")
+
     print(mean_reward, std_reward)
