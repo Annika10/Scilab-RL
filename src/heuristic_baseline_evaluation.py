@@ -150,30 +150,29 @@ def evaluate_policy(
                 # print(f"Need for control dodge: {new_observations['need_for_control_dodge']}")
                 # print(f"Need for control collect: {new_observations['need_for_control_collect']}")
                 # print(f"Action: {actions}")
+                if actions[0] == 0:
+                    a = -0.5 * new_observations["need_for_control_collect"] + 0.5
+                    d = 0.5 * new_observations["need_for_control_collect"] + 0.5
+                    
+                    corrected_inactive_need_for_control = a * math.tanh(
+                        0.25 * (counter_without_switch - (30 / 2))) + d
+                    # print(f"COLLECT: Corrected inactive need for control: {corrected_inactive_need_for_control}")
+                else:
+                    a = -0.5 * new_observations["need_for_control_dodge"] + 0.5
+                    d = 0.5 * new_observations["need_for_control_dodge"] + 0.5
+                    corrected_inactive_need_for_control = a * math.tanh(
+                        0.25 * (counter_without_switch - (30 / 2))) + d
+                    # print(f"DODGE: Corrected inactive need for control: {corrected_inactive_need_for_control}")
                 
-                if counter_without_switch < minimum_following_frames:
+                if counter_without_switch < minimum_following_frames - 1:
                     actions = last_action
                 else:
                     if actions[0] == 0:
-                        a = -0.5 * new_observations["need_for_control_collect"] + 0.5
-                        d = 0.5 * new_observations["need_for_control_collect"] + 0.5
-                        
-                        corrected_inactive_need_for_control = a * math.tanh(
-                            0.25 * (counter_without_switch - (30 / 2))) + d
-                        # print(f"COLLECT: Corrected inactive need for control: {corrected_inactive_need_for_control}")
-                        
                         if new_observations["need_for_control_dodge"] >= corrected_inactive_need_for_control:
                             actions = np.array([0])
                         else:
                             actions = np.array([1])
                     else:
-                        a = -0.5 * new_observations["need_for_control_dodge"] + 0.5
-                        d = 0.5 * new_observations["need_for_control_dodge"] + 0.5
-                        
-                        corrected_inactive_need_for_control = a * math.tanh(
-                            0.25 * (counter_without_switch - (30 / 2))) + d
-                        # print(f"DODGE: Corrected inactive need for control: {corrected_inactive_need_for_control}")
-                        
                         if new_observations["need_for_control_collect"] >= corrected_inactive_need_for_control:
                             actions = np.array([1])
                         else:
@@ -278,7 +277,9 @@ def evaluate_policy(
             animation.start_animation()
             ###################
     
-    # animation.save_animation("animation")
+    if render:
+        animation.save_animation("animation")
+    
     mean_reward = np.mean(episode_rewards)
     std_reward = np.std(episode_rewards)
     
