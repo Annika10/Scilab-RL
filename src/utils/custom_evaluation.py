@@ -69,12 +69,12 @@ def evaluate_policy(
     is_monitor_wrapped = False
     # Avoid circular import
     from stable_baselines3.common.monitor import Monitor
-
+    
     if not isinstance(env, VecEnv):
         env = DummyVecEnv([lambda: env])
-
+    
     is_monitor_wrapped = is_vecenv_wrapped(env, VecMonitor) or env.env_is_wrapped(Monitor)[0]
-
+    
     if not is_monitor_wrapped and warn:
         warnings.warn(
             "Evaluation environment is not wrapped with a ``Monitor`` wrapper. "
@@ -82,29 +82,29 @@ def evaluate_policy(
             "Consider wrapping environment first with ``Monitor`` wrapper.",
             UserWarning,
         )
-
+    
     n_envs = env.num_envs
     episode_rewards = []
     episode_lengths = []
-
+    
     episode_counts = np.zeros(n_envs, dtype="int")
     # Divides episodes among different sub environments in the vector as evenly as possible
     episode_count_targets = np.array([(n_eval_episodes + i) // n_envs for i in range(n_envs)], dtype="int")
-
+    
     current_rewards = np.zeros(n_envs)
     current_lengths = np.zeros(n_envs, dtype="int")
     current_number_of_crashed_or_collected_objects = np.zeros(n_envs, dtype="int")
     observations = env.reset()
     states = None
-
+    
     ### from me
     episode_number_of_crashed_or_collected_objects = []
     # Note: you should use vec_env.env_method("get_wrapper_attr", "attribute_name") in Gymnasium v1.0
     env_name = env.env_method("get_wrapper_attr", "name")[0]
     ###
-
+    
     while (episode_counts < episode_count_targets).any():
-
+        
         ### custom code
         actions, states, forward_normal = model.predict(observations, state=states, deterministic=deterministic)
         # for logging: get last position, predicted position and new position
@@ -118,11 +118,11 @@ def evaluate_policy(
                                                                     agent_size=agent_size)[0][0]
         predicted_x_position = min(max(1, forward_normal.mean.cpu().detach().numpy()[0][0]), 10)
         expected_new_positon = min(max(1, position + (actions[0] - 1)), 10)
-
-        observations, rewards, dones, infos, prediction_error, need_for_control, soc, reward_with_future_reward_estimation_corrective, _, _, new_positions = model.step_in_env(
+        
+        observations, rewards, dones, infos, prediction_error, need_for_control, soc, reward_with_future_reward_estimation_corrective, _, _, new_positions, _, _ = model.step_in_env(
             actions=actions,
             forward_normal=forward_normal)
-
+        
         if model.reward_predicting:
             logger.record("eval/predicted_rewards", float(forward_normal.mean[:, -1].mean()))
             logger.record_mean("eval/predicted_rewards_mean", float(forward_normal.mean[:, -1].mean()))
@@ -144,7 +144,7 @@ def evaluate_policy(
         # already logged in custom callback
         logger.record("eval/rollout_rewards_step", float(rewards.mean()))
         logger.record_mean("eval/rollout_rewards_mean", float(rewards.mean()))
-
+        
         # dodge/collect env
         if "simple" in infos[0].keys():
             logger.record("eval/number_of_crashed_or_collected_objects",
@@ -152,25 +152,25 @@ def evaluate_policy(
         # trigger metric visualization
         if callback_metric_viz:
             callback_metric_viz._on_step()
-
+        
         if "simple" in infos[0].keys():
             current_number_of_crashed_or_collected_objects += infos[0]["number_of_crashed_or_collected_objects"]
-
+        
         ### until here
-
+        
         current_rewards += rewards
         current_lengths += 1
         for i in range(n_envs):
             if episode_counts[i] < episode_count_targets[i]:
-
+                
                 # unpack values so that the callback can access the local variables
                 reward = rewards[i]
                 done = dones[i]
                 info = infos[i]
-
+                
                 if callback is not None:
                     callback(locals(), globals())
-
+                
                 if dones[i]:
                     if is_monitor_wrapped:
                         # Atari wrapper can send a "done" signal when
@@ -188,23 +188,23 @@ def evaluate_policy(
                         episode_rewards.append(current_rewards[i])
                         episode_lengths.append(current_lengths[i])
                         episode_counts[i] += 1
-
+                        
                         ### from me
                         episode_number_of_crashed_or_collected_objects.append(
                             current_number_of_crashed_or_collected_objects[i])
-
+                    
                     current_rewards[i] = 0
                     current_lengths[i] = 0
-
+                    
                     ### from me
                     current_number_of_crashed_or_collected_objects[i] = 0
-
+                    
                     if states is not None:
                         states[i] *= 0
-
+        
         if render:
             env.render()
-
+    
     mean_reward = np.mean(episode_rewards)
     std_reward = np.std(episode_rewards)
     if reward_threshold is not None:
@@ -270,12 +270,12 @@ def evaluate_policy_meta_agent(
     is_monitor_wrapped = False
     # Avoid circular import
     from stable_baselines3.common.monitor import Monitor
-
+    
     if not isinstance(env, VecEnv):
         env = DummyVecEnv([lambda: env])  # type: ignore[list-item, return-value]
-
+    
     is_monitor_wrapped = is_vecenv_wrapped(env, VecMonitor) or env.env_is_wrapped(Monitor)[0]
-
+    
     if not is_monitor_wrapped and warn:
         warnings.warn(
             "Evaluation environment is not wrapped with a ``Monitor`` wrapper. "
@@ -283,29 +283,29 @@ def evaluate_policy_meta_agent(
             "Consider wrapping environment first with ``Monitor`` wrapper.",
             UserWarning,
         )
-
+    
     n_envs = env.num_envs
     episode_rewards = []
     episode_lengths = []
     first_step = True
-
+    
     dict_avoid = {"timesteps": [], "player_pos": [], "active_task": [], "input_noise": [], "current_reward": [],
                   "list_of_visible_objects": [], "number_of_visible_objects": [], "distance_to_closest_object": []}
-
+    
     dict_collect = {"timesteps": [], "player_pos": [], "active_task": [], "input_noise": [], "current_reward": [],
                     "list_of_visible_objects": [], "number_of_visible_objects": [], "distance_to_closest_object": []}
-
+    
     episode_counts = np.zeros(n_envs, dtype="int")
     # Divides episodes among different sub environments in the vector as evenly as possible
     episode_count_targets = np.array([(n_eval_episodes + i) // n_envs for i in range(n_envs)], dtype="int")
-
+    
     duration = 0
     current_rewards = np.zeros(n_envs)
     current_lengths = np.zeros(n_envs, dtype="int")
     observations = env.reset()
     states = None
     episode_starts = np.ones((env.num_envs,), dtype=bool)
-
+    
     ### from me
     last_action = np.array([0])
     current_number_of_crashed_objects = np.zeros(n_envs, dtype="int")
@@ -319,7 +319,7 @@ def evaluate_policy_meta_agent(
     episode_number_of_dodge_actions = []
     episode_number_of_collect_actions = []
     ###
-
+    
     while (episode_counts < episode_count_targets).any():
         actions, states = model.predict(
             observations,  # type: ignore[arg-type]
@@ -327,7 +327,7 @@ def evaluate_policy_meta_agent(
             episode_start=episode_starts,
             deterministic=deterministic,
         )
-
+        
         # ### evaluate the forward model
         # observation_width = env.env_method("get_wrapper_attr", "observation_width")[0]
         # observation_height = env.env_method("get_wrapper_attr", "observation_height")[0]
@@ -361,7 +361,7 @@ def evaluate_policy_meta_agent(
         # forward_model = trained_agent.fm_network
         # # tensor (1, 22) & tensor (1, 1)
         # forward_model_prediction = forward_model(last_observations, torch.tensor([actions]).float())
-
+        
         # belief_state = get_observation_of_position_and_object_positions(agent_and_object_positions=
         #                                                                 forward_model_prediction.mean[
         #                                                                     0][:-1].cpu().unsqueeze(0),
@@ -371,7 +371,7 @@ def evaluate_policy_meta_agent(
         #                                                                 task=task).flatten().cpu().numpy()
         # belief_state = np.expand_dims(belief_state, 0)
         new_observations, rewards, dones, infos = env.step(actions)
-
+        
         # new_observations_current_task = np.array([])
         # if actions[0] == 0:
         #     for i in range(0, observation_height * 2, 2):
@@ -395,16 +395,16 @@ def evaluate_policy_meta_agent(
         #         observation_width=observation_width,
         #         observation_height=observation_height,
         #         agent_size=agent_size)
-
+        
         # print("forward_model_prediction", torch.round(forward_model_prediction.mean))
         # print("positions_of_new_observation", positions_of_new_observation)
-
+        
         ### custom code
-
+        
         info_dict = infos[0]
-
+        
         noise = info_dict['input_noise']
-
+        
         if first_step:
             difficulty_dodge = info_dict['difficulty_dodge']
             difficulty_collect = info_dict['difficulty_collect']
@@ -413,30 +413,30 @@ def evaluate_policy_meta_agent(
             else:
                 input_noise = 'yes'
             first_step = False
-
+        
         list_of_visible_objects_dodge = []
         list_of_visible_objects_collect = []
-
+        
         for i in range(1, info_dict["objects_dodge"].size(dim=1), 2):
             x = info_dict["objects_dodge"][0, i - 1]
             y = info_dict["objects_dodge"][0, i]
             temp_list = [x.item(), y.item()]
             list_of_visible_objects_dodge.append(temp_list)
-
+        
         for i in range(1, info_dict["objects_collect"].size(dim=1), 2):
             x = info_dict["objects_collect"][0, i - 1]
             y = info_dict["objects_collect"][0, i]
             temp_list = [x.item(), y.item()]
             list_of_visible_objects_collect.append(temp_list)
-
+        
         # remove player position
         player_dodge = list_of_visible_objects_dodge.pop(0)
         player_collect = list_of_visible_objects_collect.pop(0)
-
+        
         # remove entrys without objects
         list_of_visible_objects_dodge = [i for i in list_of_visible_objects_dodge if i != [0.0, 0.0]]
         list_of_visible_objects_collect = [i for i in list_of_visible_objects_collect if i != [0.0, 0.0]]
-
+        
         distances_dodge = []
         distance_to_closest_object_dodge = 0
         for object in list_of_visible_objects_dodge:
@@ -445,7 +445,7 @@ def evaluate_policy_meta_agent(
             distance_to_closest_object_dodge = min(distances_dodge)
         else:
             distance_to_closest_object_dodge = np.nan
-
+        
         distances_collect = []
         distance_to_closest_object_collect = 0
         for object in list_of_visible_objects_collect:
@@ -454,37 +454,37 @@ def evaluate_policy_meta_agent(
             distance_to_closest_object_collect = min(distances_collect)
         else:
             distance_to_closest_object_collect = np.nan
-
+        
         dict_avoid["timesteps"].append(duration)
         dict_collect["timesteps"].append(duration)
-
+        
         duration = duration + 1
-
+        
         dict_avoid["player_pos"].append(info_dict['dodge_position_before'])
         dict_collect["player_pos"].append(info_dict['collect_position_before'])
-
+        
         dict_avoid["input_noise"].append(noise)
         dict_collect["input_noise"].append(noise)
-
+        
         dict_avoid["current_reward"].append(info_dict['reward_dodge'])
         dict_collect["current_reward"].append(info_dict['reward_collect'])
-
+        
         if info_dict['action_meta'] == 0:
             active_task = True
         else:
             active_task = False
         dict_avoid["active_task"].append(active_task)
         dict_collect["active_task"].append(not active_task)
-
+        
         dict_avoid["list_of_visible_objects"].append(list_of_visible_objects_dodge)
         dict_collect["list_of_visible_objects"].append(list_of_visible_objects_collect)
-
+        
         dict_avoid["number_of_visible_objects"].append(len(list_of_visible_objects_dodge))
         dict_collect["number_of_visible_objects"].append(len(list_of_visible_objects_collect))
-
+        
         dict_avoid["distance_to_closest_object"].append(distance_to_closest_object_dodge)
         dict_collect["distance_to_closest_object"].append(distance_to_closest_object_collect)
-
+        
         logger.record("eval/action_meta", info_dict["action_meta"])
         logger.record("eval/dodge_position_before", info_dict["dodge_position_before"])
         logger.record("eval/collect_position_before", info_dict["collect_position_before"])
@@ -509,7 +509,7 @@ def evaluate_policy_meta_agent(
                       info_dict["info_collect"][0]["number_of_crashed_or_collected_objects"])
         logger.record("eval/rollout_rewards_step", float(rewards.mean()))
         logger.record_mean("eval/rollout_rewards_mean", float(rewards.mean()))
-
+        
         # dodge/collect env
         if "simple" in infos[0].keys():
             logger.record("eval/number_of_crashed_or_collected_objects",
@@ -517,7 +517,7 @@ def evaluate_policy_meta_agent(
         # trigger metric visualization
         if callback_metric_viz:
             callback_metric_viz._on_step()
-
+        
         current_number_of_crashed_objects += info_dict["info_dodge"][0]["number_of_crashed_or_collected_objects"]
         current_number_of_collected_objects += info_dict["info_collect"][0]["number_of_crashed_or_collected_objects"]
         if not (last_action == actions).item():
@@ -527,9 +527,9 @@ def evaluate_policy_meta_agent(
             current_number_of_dodge_actions += 1
         elif actions == np.array([1]):
             current_number_of_collect_actions += 1
-
+        
         ### until here
-
+        
         current_rewards += rewards
         current_lengths += 1
         for i in range(n_envs):
@@ -539,10 +539,10 @@ def evaluate_policy_meta_agent(
                 done = dones[i]
                 info = infos[i]
                 episode_starts[i] = done
-
+                
                 if callback is not None:
                     callback(locals(), globals())
-
+                
                 if dones[i]:
                     if is_monitor_wrapped:
                         # Atari wrapper can send a "done" signal when
@@ -560,7 +560,7 @@ def evaluate_policy_meta_agent(
                         episode_rewards.append(current_rewards[i])
                         episode_lengths.append(current_lengths[i])
                         episode_counts[i] += 1
-
+                        
                         ### from me
                         episode_number_of_crashed_objects.append(current_number_of_crashed_objects[i])
                         episode_number_of_collected_objects.append(current_number_of_collected_objects[i])
@@ -570,25 +570,25 @@ def evaluate_policy_meta_agent(
                         ###
                     current_rewards[i] = 0
                     current_lengths[i] = 0
-
+                    
                     ### from me
                     current_number_of_crashed_objects[i] = 0
                     current_number_of_collected_objects[i] = 0
                     current_number_of_switches[i] = 0
                     current_number_of_dodge_actions[i] = 0
                     current_number_of_collect_actions[i] = 0
-
+        
         observations = new_observations
-
+        
         if render:
             env.render()
-
+    
     dir_path = os.path.join(os.path.dirname(__file__), '..', '..', 'agent_data')
-
+    
     if not os.path.isdir(dir_path):
         print("Creating directory for evaluation files of agent")
         os.mkdir(dir_path)
-
+    
     avoid_df = pd.DataFrame.from_dict(data=dict_avoid)
     collect_df = pd.DataFrame.from_dict(data=dict_collect)
     avoid_df.to_csv(
@@ -597,7 +597,7 @@ def evaluate_policy_meta_agent(
     collect_df.to_csv(
         dir_path + '/agent_' + difficulty_dodge + '_' + difficulty_collect + '_' + input_noise + '_' + str(
             counter) + '_collect.csv', index=False)
-
+    
     mean_reward = np.mean(episode_rewards)
     std_reward = np.std(episode_rewards)
     if reward_threshold is not None:

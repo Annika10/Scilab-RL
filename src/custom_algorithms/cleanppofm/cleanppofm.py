@@ -412,7 +412,7 @@ class CLEANPPOFM:
             elif isinstance(self.action_space, spaces.Discrete):
                 clipped_actions = actions[0]
             
-            new_obs, rewards, dones, infos, prediction_error, need_for_control, soc, reward_with_future_reward_estimation_corrective, _, _, new_positions = self.step_in_env(
+            new_obs, rewards, dones, infos, prediction_error, need_for_control, soc, reward_with_future_reward_estimation_corrective, _, _, new_positions, _, _ = self.step_in_env(
                 actions=clipped_actions, forward_normal=forward_normal)
             
             # FIXME: is it possible that multiple actions are taken here?

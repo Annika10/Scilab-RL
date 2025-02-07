@@ -82,7 +82,7 @@ def register_custom_envs():
                      kwargs={'n_objects': n_objects, 'gripper_goal': gripper_goal,
                              'distance_threshold': distance_threshold},
                      max_episode_steps=max(50, 50 * n_objects))
-
+    
     ## Custom Ant environments
     for reward_type in ["sparse", "sparseneg", "dense"]:
         for fs in [5, 10, 15, 20]:
@@ -148,11 +148,11 @@ def register_custom_envs():
     #     kwargs=kwargs,
     #     max_episode_steps=700,
     # )
-
+    
     register(id='Reach1DOF-v0',
              entry_point='custom_envs.reach1dof.reach1dof_env:Reach1DOFEnv',
              max_episode_steps=50)
-
+    
     register(id="MoonlanderWorld-dodge-simple-v0",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
              kwargs={'task': 'dodge', 'reward_function': 'simple'},
@@ -183,7 +183,12 @@ def register_custom_envs():
              kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_hard.yaml',
                      'ranges_inverted': True},
              max_episode_steps=500)
-
+    register(id="MoonlanderWorld-dodge-gaussian-hard-10x10-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian',
+                     'config_file_name': 'config_dodge_hard_10x10.yaml'},
+             max_episode_steps=500)
+    
     register(id="MoonlanderWorld-collect-simple-v0",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
              kwargs={'task': 'collect', 'reward_function': 'simple'},
@@ -214,14 +219,19 @@ def register_custom_envs():
              kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_hard.yaml',
                      'ranges_inverted': True},
              max_episode_steps=500)
-
+    register(id="MoonlanderWorld-collect-gaussian-hard-10x10-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian',
+                     'config_file_name': 'config_collect_hard_10x10.yaml'},
+             max_episode_steps=500)
+    
     filename_small = "hard_object_list_10_times_10.csv"
     filename_small_1 = "hard_object_list_10_times_10_1.csv"
     filename_collect_easy = "collect_easy_object_list_30_times_40.csv"
     filename_collect_hard = "collect_hard_object_list_30_times_40.csv"
     filename_dodge_easy = "dodge_easy_object_list_30_times_40.csv"
     filename_dodge_hard = "dodge_hard_object_list_30_times_40.csv"
-
+    
     list_of_filenames = [filename_small, filename_small_1, filename_collect_easy, filename_collect_hard,
                          filename_dodge_easy, filename_dodge_hard]
     dict_of_filename_to_object_dict_list = {}
@@ -235,7 +245,7 @@ def register_custom_envs():
                 # form string to list of dictionaries
                 list_of_object_dict_lists.append(ast.literal_eval(line[1]))
         dict_of_filename_to_object_dict_list[filename] = list_of_object_dict_lists
-
+    
     # BENCHMARKS
     register(id="MoonlanderWorld-collect-gaussian-benchmark-small-v0",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
@@ -273,7 +283,7 @@ def register_custom_envs():
                      'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
                          "dodge_hard_object_list_30_times_40.csv"]},
              max_episode_steps=500)
-
+    
     register(id="MetaEnv-v0",
              entry_point="src.custom_envs.moonlander.meta_env:MetaEnv",
              kwargs={'reward_function': 'simple'},
@@ -286,7 +296,7 @@ def register_custom_envs():
              entry_point="src.custom_envs.moonlander.meta_env:MetaEnv",
              kwargs={'reward_function': 'pos_neg'},
              max_episode_steps=500)
-
+    
     # FIXME: this one doesn't work at the moment
     register(id="MetaEnv-pretrained-small-v0",
              entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
@@ -380,7 +390,7 @@ def register_custom_envs():
              #              kwargs={'dodge_best_model_name': "collect_hard_input_noise_15_11_rl_model_best",
              #                      'collect_best_model_name': "collect_hard_input_noise_15_11_rl_model_best"},
              max_episode_steps=500)
-
+    
     register(id="MetaEnv-pretrained-human-two-collect-tasks-easy-hard-reward-function-paper-v0",
              entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
              kwargs={'dodge_best_model_name': "collect_easy_no_input_noise_15_11_rl_model_best",
@@ -392,7 +402,7 @@ def register_custom_envs():
              #              kwargs={'dodge_best_model_name': "collect_easy_input_noise_15_11_rl_model_best",
              #                      'collect_best_model_name': "collect_hard_input_noise_15_11_rl_model_best"},
              max_episode_steps=500)
-
+    
     register(id="MetaEnv-pretrained-human-two-collect-tasks-easy-hard-reward-is-NfC-v0",
              entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
              kwargs={'dodge_best_model_name': "collect_easy_no_input_noise_15_11_rl_model_best",
@@ -404,7 +414,7 @@ def register_custom_envs():
              #              kwargs={'dodge_best_model_name': "collect_easy_input_noise_15_11_rl_model_best",
              #                      'collect_best_model_name': "collect_hard_input_noise_15_11_rl_model_best"},
              max_episode_steps=500)
-
+    
     # benchmarks
     register(id="MetaEnv-pretrained-benchmark-small-v0",
              entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
@@ -451,7 +461,7 @@ def register_custom_envs():
                      'collect_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
                          "collect_hard_object_list_30_times_40.csv"]},
              max_episode_steps=500)
-
+    
     register(id="GridworldEnv-v0",
              entry_point="custom_envs.grid_world.grid_world_env:GridWorldEnv",
              max_episode_steps=10)
@@ -463,31 +473,31 @@ def register_custom_envs():
              entry_point="custom_envs.grid_world.grid_world_env:GridWorldEnv",
              kwargs={'scene_of_input_noise': True},
              max_episode_steps=10)
-
+    
     register(id="MetaLunarLanderEnv-v0",
              entry_point="custom_envs.meta_lunar_lander.meta_lunar_lander_env:MetaLunarLanderEnv",
              max_episode_steps=1000)
     register(id="MetaLunarLanderEnv-v1",
              entry_point="custom_envs.meta_lunar_lander.hierarchical_meta_lunar_lander_env:HierarchicalMetaLunarLanderEnv",
              max_episode_steps=1000)
-
+    
     for n_objects in range(3):
         register(id=f'Hook-o{n_objects}-v1',
                  entry_point='custom_envs.hook.hook_env:HookEnv',
                  kwargs={'n_objects': n_objects},
                  max_episode_steps=max(50, 100 * n_objects))
-
+        
         register(id=f'ButtonUnlock-o{n_objects}-v1',
                  entry_point='custom_envs.button_unlock.button_unlock_env:ButtonUnlockEnv',
                  kwargs={'n_buttons': n_objects + 1},
                  max_episode_steps=max(50, 50 * n_objects))
-
+    
     register(
         id='parking-limited-v0',
         entry_point='highway_env.envs:ParkingEnv',
         max_episode_steps=100,
     )
-
+    
     register_metaworld_envs()
 
 
@@ -499,7 +509,7 @@ def register_metaworld_envs():
             sparse - use the MakeDictObs wrapper and sparse rewards
             dense - use the MakeDictObs wrapper and dense rewards
             """
-
+            
             def make_variable_goal_env(environment_class, environment_type):
                 def variable_goal_env(**kwargs):
                     """
@@ -516,9 +526,9 @@ def register_metaworld_envs():
                     else:
                         raise ValueError(f"unknown environment type {environment_type}")
                     return env
-
+                
                 return variable_goal_env
-
+            
             if env_type == "original":
                 register(id=f"MetaW-{env_name[:-len('-goal-observable')]}",
                          entry_point=make_variable_goal_env(env_class, env_type), max_episode_steps=500)
