@@ -62,7 +62,7 @@ class CLEANPPOFM:
     :param vf_coef: Value function coefficient for the loss calculation
     :param max_grad_norm: The maximum value for the gradient clipping
     """
-
+    
     def __init__(
             self,
             env: Union[GymEnv, str],
@@ -97,33 +97,33 @@ class CLEANPPOFM:
         self._last_episode_starts = None  # type: Optional[np.ndarray]
         # Buffers for logging
         self.ep_info_buffer = None  # type: Optional[deque]
-
+        
         self.observation_space = env.observation_space
         self.action_space = env.action_space
         self.n_envs = env.num_envs
         self.env = env
         # use gymnasium logger for yellow colored logging
         gymnasium_logger.warn("This algorithm is only tested under the Moonlander Envs")
-
+        
         if isinstance(self.action_space, spaces.Box):
             assert np.all(
                 np.isfinite(np.array([self.action_space.low, self.action_space.high]))
             ), "Continuous action space must have a finite lower and upper bound"
-
+        
         self.n_steps = n_steps
         self.gamma = gamma
         self.gae_lambda = gae_lambda
         self.ent_coef = ent_coef
         self.vf_coef = vf_coef
         self.max_grad_norm = max_grad_norm
-
+        
         # Sanity check, otherwise it will lead to noisy gradient and NaN
         # because of the advantage normalization
         if normalize_advantage:
             assert (
                     batch_size > 1
             ), "`batch_size` must be greater than 1. See https://github.com/DLR-RM/stable-baselines3/issues/440"
-
+        
         # Check that `n_steps * n_envs > 1` to avoid NaN
         # when doing advantage normalization
         buffer_size = self.env.num_envs * self.n_steps
@@ -146,7 +146,7 @@ class CLEANPPOFM:
         self.clip_range = clip_range
         self.clip_range_vf = clip_range_vf
         self.normalize_advantage = normalize_advantage
-
+        
         # Forward model (own implementation)
         self.fm_parameters = fm_parameters
         # (boolean) in moonlander env, you can choose if the forward model predicts the complete next observation
@@ -168,13 +168,13 @@ class CLEANPPOFM:
         self.model_based = model_based
         # prediction error of the prediction of the forward model and the actual next observation
         self.soc = 1
-
+        
         # get the env name as described here: https://github.com/DLR-RM/stable-baselines3/blob/master/docs/guide/vec_envs.rst
         # Note: you should use vec_env.env_method("get_wrapper_attr", "attribute_name") in Gymnasium v1.0
         self.env_name = self.env.env_method("get_wrapper_attr", "name")[0]
         if not self.env_name == "MoonlanderWorldEnv":
             raise NotImplementedError("This algorithm is not implemented for this environment yet!")
-
+        
         # position predicting only possible for moonlander env
         if self.position_predicting and not self.env_name == "MoonlanderWorldEnv":
             raise NotImplementedError("Position predicting is only possible for the moonlander environment by now!")
@@ -187,12 +187,12 @@ class CLEANPPOFM:
             self.fm_network = fm_cls(self.env, self.fm_parameters).to(device)
         else:
             self.fm_network = fm_cls(self.env, self.fm_parameters, self.maximum_number_of_objects).to(device)
-
+        
         self.observation_height = self.env.env_method("get_wrapper_attr", "observation_height")[0]
         self.observation_width = self.env.env_method("get_wrapper_attr", "observation_width")[0]
         self.agent_size = self.env.env_method("get_wrapper_attr", "size")[0]
         self.task = self.env.env_method("get_wrapper_attr", "task")[0]
-
+        
         self.fm_optimizer = torch.optim.Adam(
             self.fm_network.parameters(),
             # FIXME
@@ -202,12 +202,12 @@ class CLEANPPOFM:
         self.fm_best_loss = math.inf
         self.best_model = copy.deepcopy(self.fm_network.state_dict())
         self.logger = None
-
+        
         self._setup_model()
-
+    
     def _setup_model(self) -> None:
         buffer_cls = DictRolloutBuffer if isinstance(self.observation_space, spaces.Dict) else RolloutBuffer
-
+        
         self.rollout_buffer = buffer_cls(
             buffer_size=self.n_steps,
             observation_space=self.observation_space,
@@ -220,7 +220,7 @@ class CLEANPPOFM:
         self.policy = Agent(env=self.env, reward_predicting=self.reward_predicting, model_based=self.model_based).to(
             device)
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=self.learning_rate, eps=1e-5)
-
+    
     def train(self) -> None:
         """
         Update policy using the currently gathered rollout buffer.
@@ -229,31 +229,31 @@ class CLEANPPOFM:
         entropy_losses = []
         pg_losses, value_losses = [], []
         clip_fractions = []
-
+        
         # train for n_epochs epochs
         for epoch in range(self.n_epochs):
             #####
             # PROBLEM: rollout_buffer.get(self.batch_size) returns a random sample of the buffer,
             # it is not ordered anymore -> solution: own implementation of the buffer
             #####
-
+            
             # Do a complete pass on the rollout buffer
             for rollout_data in self.rollout_buffer.get(self.batch_size):
                 actions = rollout_data.actions
                 if isinstance(self.action_space, spaces.Discrete):
                     # Convert discrete action from float to long
                     actions = rollout_data.actions.long().flatten()
-
+                
                 #####
                 observations = rollout_data.observations
-
+                
                 # our custom implementation of the buffer includes the next observation for training the forward model
                 next_observations = rollout_data.next_observations
                 rewards = rollout_data.rewards
-
+                
                 self.train_fm(observations, next_observations, actions, rewards)
                 #####
-
+                
                 _, log_prob, entropy, values, _ = self.policy.get_action_and_value_and_forward_model_prediction(
                     fm_network=self.fm_network,
                     obs=observations,
@@ -266,20 +266,20 @@ class CLEANPPOFM:
                 # Normalization does not make sense if mini batchsize == 1, see GH issue #325
                 if self.normalize_advantage and len(advantages) > 1:
                     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-
+                
                 # ratio between old and new policy, should be one at the first iteration
                 ratio = torch.exp(log_prob - rollout_data.old_log_prob)
-
+                
                 # clipped surrogate loss
                 policy_loss_1 = advantages * ratio
                 policy_loss_2 = advantages * torch.clamp(ratio, 1 - self.clip_range, 1 + self.clip_range)
                 policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
-
+                
                 # Logging
                 pg_losses.append(policy_loss.item())
                 clip_fraction = torch.mean((torch.abs(ratio - 1) > self.clip_range).float()).item()
                 clip_fractions.append(clip_fraction)
-
+                
                 if self.clip_range_vf is None:
                     # No clipping
                     values_pred = values
@@ -292,29 +292,29 @@ class CLEANPPOFM:
                 # Value loss using the TD(gae_lambda) target
                 value_loss = F.mse_loss(rollout_data.returns, values_pred)
                 value_losses.append(value_loss.item())
-
+                
                 # Entropy loss favor exploration
                 if entropy is None:
                     # Approximate entropy when no analytical form
                     entropy_loss = -torch.mean(-log_prob)
                 else:
                     entropy_loss = -torch.mean(entropy)
-
+                
                 entropy_losses.append(entropy_loss.item())
-
+                
                 loss = policy_loss + self.ent_coef * entropy_loss + self.vf_coef * value_loss
-
+                
                 # Optimization step
                 self.optimizer.zero_grad()
                 loss.backward()
                 # Clip grad norm
                 torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                 self.optimizer.step()
-
+        
         var_y = np.var(self.rollout_buffer.values.flatten())
         explained_var = np.nan if var_y == 0 else (
                 1 - np.var(self.rollout_buffer.returns.flatten() - self.rollout_buffer.values.flatten()) / var_y)
-
+        
         # Logs
         self.logger.record("train/entropy_loss", np.mean(entropy_losses))
         self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
@@ -322,7 +322,7 @@ class CLEANPPOFM:
         self.logger.record("train/clip_fraction", np.mean(clip_fractions))
         self.logger.record("train/loss", loss.item())
         self.logger.record("train/explained_variance", explained_var)
-
+    
     def learn(
             self,
             total_timesteps: int,
@@ -337,15 +337,15 @@ class CLEANPPOFM:
         self._last_obs = self.env.reset()
         callback.init_callback(self)
         callback.on_training_start(locals(), globals())
-
+        
         while self.num_timesteps < total_timesteps:
             continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer)
-
+            
             if continue_training is False:
                 break
-
+            
             iteration += 1
-
+            
             # Display training infos
             if log_interval is not None and iteration % log_interval == 0:
                 assert self.ep_info_buffer is not None
@@ -356,13 +356,13 @@ class CLEANPPOFM:
                                        np.mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
                 self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
                 self.logger.dump(step=self.num_timesteps)
-
+            
             self.train()
-
+        
         callback.on_training_end()
-
+        
         return self
-
+    
     def collect_rollouts(
             self,
             env: VecEnv,
@@ -383,13 +383,13 @@ class CLEANPPOFM:
             collected, False if callback terminated rollout prematurely.
         """
         assert self._last_obs is not None, "No previous observation was provided"
-
+        
         n_steps = 0
         elements_in_rollout_buffer = 0
         rollout_buffer.reset()
-
+        
         callback.on_rollout_start()
-
+        
         while elements_in_rollout_buffer < self.n_steps:
             with torch.no_grad():
                 # get action and forward model prediction
@@ -398,7 +398,7 @@ class CLEANPPOFM:
                     obs=self._last_obs, logger=self.logger,
                     position_predicting=self.position_predicting,
                     maximum_number_of_objects=self.maximum_number_of_objects)
-
+            
             # log logarithmic probability of action distribution (one value in tensor)
             log_prob_float = float(np.mean(log_probs.cpu().numpy()))
             self.logger.record("train/rollout_logprob_step", float(log_prob_float))
@@ -411,10 +411,10 @@ class CLEANPPOFM:
                 clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
             elif isinstance(self.action_space, spaces.Discrete):
                 clipped_actions = actions[0]
-
+            
             new_obs, rewards, dones, infos, prediction_error, need_for_control, soc, reward_with_future_reward_estimation_corrective, _, _, new_positions = self.step_in_env(
                 actions=clipped_actions, forward_normal=forward_normal)
-
+            
             # FIXME: is it possible that multiple actions are taken here?
             ##### LOGGING #####
             if self.reward_predicting:
@@ -432,7 +432,7 @@ class CLEANPPOFM:
             self.logger.record_mean("train/soc_mean", soc)
             self.logger.record("train/rollout_rewards_step", float(rewards.mean()))
             self.logger.record_mean("train/rollout_rewards_mean", float(rewards.mean()))
-
+            
             # this is only logged when no hyperparameter tuning is running?
             # dodge/collect env
             if "simple" in infos[0].keys():
@@ -447,21 +447,21 @@ class CLEANPPOFM:
                 self.logger.record("dodge_gaussian_reward", infos[0]["dodge"]["gaussian"])
                 self.logger.record("collect_gaussian_reward", infos[0]["collect"]["gaussian"])
                 self.logger.record("task_switching_costs", infos[0]["task_switching_costs"])
-
+            
             # stable baselines 3 implementation
             self.num_timesteps += env.num_envs
-
+            
             # Give access to local variables
             callback.update_locals(locals())
             if callback.on_step() is False:
                 return False
-
+            
             n_steps += 1
-
+            
             if isinstance(self.action_space, spaces.Discrete):
                 # Reshape in case of discrete action
                 actions = actions.reshape(-1, 1)
-
+            
             # Handle timeout by bootstraping with value function
             # see GitHub issue #633
             # FIXME: go here to get actual terminal observation
@@ -470,7 +470,7 @@ class CLEANPPOFM:
                 if done and infos[idx].get("terminal_observation") is not None:
                     # fixme: what about multiple elements in the list?
                     temporary_new_obs = infos[idx]["terminal_observation"]
-
+                    
                     # TimeLimit.truncated = truncated and not terminated --> when episode is done because of time limit (steps)
                     if infos[idx].get("TimeLimit.truncated", False):
                         terminal_obs = infos[idx]["terminal_observation"]
@@ -483,7 +483,7 @@ class CLEANPPOFM:
                                 terminal_obs = np.expand_dims(terminal_obs, axis=0)
                             terminal_value = self.policy.get_value(terminal_obs)[0]
                         rewards[idx] += self.gamma * terminal_value
-
+            
             # this is needed because otherwise the last observation and action does not match the new observation
             # FIXME: but maybe this removes one step? but otherwise the forward model does not learn well because
             # it does not understand that a new episode has started and therefore a new observation is given
@@ -501,59 +501,58 @@ class CLEANPPOFM:
                 elements_in_rollout_buffer += 1
             self._last_obs = new_obs
             self._last_episode_starts = dones
-
+        
         with torch.no_grad():
             if self.model_based:
                 # fixme: this is hardcoded, it does not work when we have a non-deterministic forward model because we calculate the next obs at two places
                 comb_obs = torch.tensor(new_obs).clone().detach()
-
+                
                 # Convert comb_obj_positions to a tensor
                 cop_tensor = torch.tensor(new_positions).float()
-
+                
                 obs_after_every_action = comb_obs.clone().detach()
                 rewards_for_every_action = {}
                 if self.task == "dodge":
                     task_type = "obstacle"
                 elif self.task == "collect":
                     task_type = "coin"
-
+                
                 for i in range(0, env.action_space.n):
                     # Fixme: for hardcoded next obs, we had to change the ordering
                     current_action = torch.full((cop_tensor.shape[0], 1), i)
                     current_action_hardcoded = torch.full((1, cop_tensor.shape[0]), i)
-
+                    
                     # FIXME: hardcoded next obs
                     next_positions = get_next_position_observation_moonlander(
                         observations=cop_tensor,
                         actions=current_action_hardcoded[0],
                         observation_width=self.observation_width,
                         agent_size=self.agent_size)
-
+                    
                     obs_after_action = get_observation_of_position_and_object_positions(
                         # agent_and_object_positions=nra_mean,
                         agent_and_object_positions=next_positions,
                         observation_height=self.observation_height,
                         observation_width=self.observation_width,
                         agent_size=self.agent_size, task=self.task)
-
+                    
                     # calculate reward for new obs
                     x_position_of_agent = int(
                         min(max(self.agent_size, next_positions[0][0]), self.observation_width - self.agent_size + 1))
                     y_position_of_agent = int(next_positions[0][1])
-
+                    
                     collected_objects = get_collected_objects(observation_positions=next_positions,
                                                               agent_size=self.agent_size,
                                                               observation_width=self.observation_width)
-
+                    
                     rewards_for_every_action[i] = [calculate_gaussian_reward(
                         state=np.array(row).reshape(self.observation_height, self.observation_width + 2),
                         collected_objects=collected_objects,
                         agent_size=self.agent_size,
                         task_type=task_type,
-                        current_reward_function="gaussian",
                         x_position_of_agent=x_position_of_agent,
                         y_position_of_agent=y_position_of_agent)[0] for row in obs_after_action]
-
+                    
                     obs_after_every_action = torch.cat(
                         (obs_after_every_action.to(device=device), obs_after_action.to(device=device)), dim=1)
                 for i in range(0, env.action_space.n):
@@ -562,16 +561,16 @@ class CLEANPPOFM:
                         1)
                     obs_after_every_action = torch.cat((obs_after_every_action, rewards_for_every_action_tensor), dim=1)
                 new_obs = obs_after_every_action.to(device=device)
-
+            
             # Compute value for the last timestep
             values = self.policy.get_value(new_obs)
-
+        
         rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
-
+        
         callback.on_rollout_end()
-
+        
         return True
-
+    
     def train_fm(self, observations: torch.Tensor, next_observations: torch.Tensor, actions: torch.Tensor,
                  rewards: torch.Tensor) -> None:
         """
@@ -588,23 +587,23 @@ class CLEANPPOFM:
         if self.policy.flatten:
             observations = flatten_obs(observations)
             next_observations = flatten_obs(next_observations)
-
+        
         ##### FORMAT OBSERVATION FOR FORWARD MODEL #####
         # 1. with or without reward (line 572)
         # 2. with or without position predicting (moonlander)
         # 3. with or without input noise
-
+        
         # moonlander without position predicting
         if not self.position_predicting:
             next_observations_duplicated = copy.deepcopy(next_observations)
-
+            
             # create next observations without input noise
             if self.env_name == "MoonlanderWorldEnv" and not self.fm_trained_with_input_noise:
                 next_observations_duplicated = get_next_whole_observation(next_observations=next_observations,
                                                                           actions=actions,
                                                                           observation_width=self.observation_width,
                                                                           observation_height=self.observation_height)
-
+            
             next_observations_formatted = next_observations_duplicated if not self.reward_predicting else torch.cat(
                 (next_observations, rewards), dim=1)
         # position predicting only for moonlander
@@ -628,7 +627,7 @@ class CLEANPPOFM:
                                                                                                agent_size=self.agent_size)
             if self.reward_predicting:
                 next_observations_formatted = torch.cat((next_observations_formatted, rewards), dim=1)
-
+        
         ##### FORWARD MODEL TRAINING #####
         # forward model prediction
         forward_model_prediction_normal_distribution = self.fm_network(observations, actions.float().unsqueeze(1))
@@ -637,19 +636,19 @@ class CLEANPPOFM:
         # negative because likelihood normally maximizes
         fw_loss = -forward_model_prediction_normal_distribution.log_prob(next_observations_formatted)
         loss = fw_loss.mean()
-
+        
         # Track best performance, and save the model's state
         if loss < self.fm_best_loss:
             self.fm_best_loss = loss
             model_path = 'best_model'
             torch.save(self.fm_network.state_dict(), model_path)
             self.best_model = copy.deepcopy(self.fm_network.state_dict())
-
+        
         self.logger.record("fm/fw_loss", loss.item())
         self.fm_optimizer.zero_grad()
         loss.backward()
         self.fm_optimizer.step()
-
+    
     def predict(
             self,
             observation: Union[np.ndarray, Dict[str, np.ndarray]],
@@ -679,7 +678,7 @@ class CLEANPPOFM:
                 logger=self.logger,
                 position_predicting=self.position_predicting, maximum_number_of_objects=self.maximum_number_of_objects)
         return action.cpu().numpy(), state, forward_model_prediction_normal_distribution
-
+    
     def step_in_env(self, actions, forward_normal,
                     # for the moment only for meta env
                     use_prediction_error: bool = True, use_need_for_control: bool = True) -> tuple[
@@ -725,7 +724,7 @@ class CLEANPPOFM:
             # but this throws a warning?
             # same below for input noise
             self.env.env_method("set_forward_model_prediction", forward_normal.mean[0][:-1].cpu().unsqueeze(0))
-
+        
         # if input noise is applied!
         input_noise = 0
         if self.input_noise_on and not actions[0] == 1:
@@ -734,17 +733,17 @@ class CLEANPPOFM:
             input_noise = np.random.normal(loc=mu, scale=sigma)
             input_noise = int(round(input_noise, 0))
         self.env.env_method("set_input_noise", input_noise)
-
+        
         ##### STEP IN ENVIRONMENT #####
         # dones = terminated or truncated
         new_obs, rewards, dones, infos = self.env.step(actions)
-
+        
         new_positions = get_position_and_object_positions_of_observation(obs=torch.tensor(new_obs, device=device),
                                                                          maximum_number_of_objects=self.maximum_number_of_objects,
                                                                          observation_width=self.observation_width,
                                                                          observation_height=self.observation_height,
                                                                          agent_size=self.agent_size)
-
+        
         prediction_error = 0
         need_for_control = 0
         if use_prediction_error:
@@ -756,35 +755,36 @@ class CLEANPPOFM:
                                                           last_possible_x_position=self.observation_width - self.agent_size + 1)
         if use_need_for_control:
             ##### CALCULATING NEED FOR CONTROL #####
-            need_for_control, summed_up_rewards_default = calculate_need_for_control(env=self.env, policy=self.policy,
-                                                                                     fm_network=self.fm_network,
-                                                                                     logger=self.logger,
-                                                                                     position_predicting=self.position_predicting,
-                                                                                     prediction_error=prediction_error,
-                                                                                     maximum_number_of_objects=self.maximum_number_of_objects)
+            need_for_control, summed_up_rewards_default, summed_up_rewards_optimal = calculate_need_for_control(
+                env=self.env, policy=self.policy,
+                fm_network=self.fm_network,
+                logger=self.logger,
+                position_predicting=self.position_predicting,
+                prediction_error=prediction_error,
+                maximum_number_of_objects=self.maximum_number_of_objects)
         ##### CALCULATING SOC #####
         # prediction error is high, if the prediction and actual observation do not match
         # need for control is high if the rewards of the optimal trajectory are quite different to the rewards of the default trajectory
         # soc = mean of prediction error and need_for_control
         self.soc = 1 - ((prediction_error + need_for_control) / 2)
-
+        
         # normalize actual reward
         rewards_normalized = normalize_rewards(task=self.task, absolute_reward=rewards)
         # add normalized reward to summed up rewards + normalize by mean
         # FIXME: changed this!!!
         # summed_up_rewards_default = (rewards_normalized + summed_up_rewards_default) / 2
-
+        
         if self.normalized_rewards:
             rewards = rewards_normalized
-
+        
         ##### CALCULATE REWARD ESTIMATION FOR DEFAULT TRAJECTORY CORRECTED BY SOC #####
         # FIXME: changed this!!!
         # reward_estimation = (summed_up_rewards_default + self.soc) / 2
         reward_estimation = (rewards_normalized + self.soc) / 2
-
+        
         # input noise only for debugging
-        return new_obs, rewards, dones, infos, prediction_error, need_for_control, self.soc, reward_estimation, input_noise, rewards_normalized, new_positions
-
+        return new_obs, rewards, dones, infos, prediction_error, need_for_control, self.soc, reward_estimation, input_noise, rewards_normalized, new_positions, summed_up_rewards_default, summed_up_rewards_optimal
+    
     def save(
             self,
             path: Union[str, pathlib.Path, io.BufferedIOBase],
@@ -799,7 +799,7 @@ class CLEANPPOFM:
         # changed to save the best forward model
         data["_fm"] = self.best_model
         torch.save(data, path)
-
+    
     @classmethod
     def load(cls, path, env, **kwargs):
         model = cls(env=env, **kwargs)
@@ -813,9 +813,9 @@ class CLEANPPOFM:
         model.policy.load_state_dict(loaded_dict["_policy"])
         model.fm_network.load_state_dict(loaded_dict["_fm"])
         return model
-
+    
     def set_logger(self, logger):
         self.logger = logger
-
+    
     def get_env(self) -> VecEnv:
         return self.env

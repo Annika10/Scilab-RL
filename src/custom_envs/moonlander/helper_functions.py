@@ -41,14 +41,14 @@ def create_ranges_of_objects_funnels_and_drifts(
     Returns:
         list of dicts of objects, list of free ranges, list of drifts
     """
-
+    
     # in the first observation are no extras like obstacles, funnels or drifts, therefore this part is removed
     # we will add it in the end again
     y_height_without_padding_area = world_y_height - 2 * height_padding_areas
-
+    
     # the world is divided in sections where obstacles are placed and where not
     # where the obstacles are not places, there is a funnel defined
-
+    
     if level_difficulty == "empty":
         # no obstacles, no drift, no funnel
         return [], [], []
@@ -64,15 +64,15 @@ def create_ranges_of_objects_funnels_and_drifts(
             level_difficulty,
             'is not defined. Please use a leveldifficulty out of ["no", "easy", "middle", "hard"]',
         )
-
+    
     if funnel_range:
         # divide world in four parts --> 1. funnel, 1. obstacles phase , 2. funnel, 2. obstacles phase
         section_length = y_height_without_padding_area / 4
-
+        
         # we define the minimum x width as two times the agent size + two additional spaces
         # the funnel can not be more tight than this in the middle of the funnel
         minimum_x_width = 2 * agent_size + 2
-
+        
         # these are the maximum number of y values (range) the funnel can have without getting too tight
         # for example, we have a x width of size 9 and an agent size of 1, then the minimum_x_width is 4
         # this means the funnels range only has to be up to 5 because it cannot tight the funnel more
@@ -85,7 +85,7 @@ def create_ranges_of_objects_funnels_and_drifts(
         # -1 0  0  0  0  0  0  0 -1
         # it is not possible to make the funnel more tight than this
         maximum_needed_range_for_funnel = world_x_width - minimum_x_width
-
+        
         # when the range of the funnel for getting to the tightest point is too big for fitting into the world
         # then just divide the world into 4 equal parts
         # for the example above, all y height without starting area that is below or equal to 20 will
@@ -124,7 +124,7 @@ def create_ranges_of_objects_funnels_and_drifts(
             remaining_range_for_objects = int(
                 (y_height_without_padding_area - (2 * maximum_needed_range_for_funnel)) / 2
             )
-
+            
             if not ranges_inverted:
                 ### OBJECTS
                 object_range_list = [
@@ -168,7 +168,7 @@ def create_ranges_of_objects_funnels_and_drifts(
             [agent_size * 3, y_height_without_padding_area],
         ]
         free_range_list = []
-
+    
     ### DRIFT
     drift_range_list = create_drift_ranges(
         world_y_height=y_height_without_padding_area,
@@ -179,22 +179,22 @@ def create_ranges_of_objects_funnels_and_drifts(
         invisible_drift_probability=invisible_drift_probability,
         fake_drift_probability=fake_drift_probability,
     )
-
+    
     # append starting area to all obstacle ranges
     for object_range in object_range_list:
         object_range[0] = int(object_range[0] + height_padding_areas)
         object_range[1] = int(object_range[1] + height_padding_areas)
-
+    
     # append starting area to all free ranges
     for free_range in free_range_list:
         free_range[0] = int(free_range[0] + height_padding_areas)
         free_range[1] = int(free_range[1] + height_padding_areas)
-
+    
     # append starting area to all drift ranges
     for drift_range in drift_range_list:
         drift_range[0] = int(drift_range[0] + height_padding_areas)
         drift_range[1] = int(drift_range[1] + height_padding_areas)
-
+    
     return object_range_list, free_range_list, drift_range_list
 
 
@@ -232,7 +232,7 @@ def create_list_of_object_dicts(
         )
     if level_difficulty == "empty":
         return []
-
+    
     object_dict_list = []
     if number_of_objects:
         if number_of_objects < 0:
@@ -242,7 +242,7 @@ def create_list_of_object_dicts(
                 "If the number of objects is > 0, object_range_list must be specified."
             )
         number_of_objects = int(number_of_objects / len(object_range_list))
-
+    
     # loop through the list of all ranges where obstacles occur
     for object_range in object_range_list:
         if not number_of_objects:
@@ -253,12 +253,12 @@ def create_list_of_object_dicts(
                 number_of_objects = int(length_of_object_range / 10)
             elif level_difficulty == "hard":
                 number_of_objects = int(length_of_object_range / 5)
-
+        
         # the number of obstacles indicates how many obstacles are in the range
         # check that there is enough space for the agent to pass obstacles
         if number_of_objects == 0:
             return []
-
+        
         object_locations = generate_object_field(
             number_of_objects=number_of_objects,
             object_size=object_size,
@@ -268,7 +268,7 @@ def create_list_of_object_dicts(
             normalized_object_placement=normalized_object_placement,
             allow_overlapping_objects=allow_overlapping_objects,
         )
-
+        
         for location_vector in object_locations:
             object_dict_list.append(
                 {
@@ -278,7 +278,7 @@ def create_list_of_object_dicts(
                     "size": object_size,
                 }
             )
-
+    
     # sort obstacles list by y value of obstacles
     object_dict_list = sorted(object_dict_list, key=lambda dictionary: dictionary["y"])
     return object_dict_list
@@ -309,96 +309,96 @@ def generate_object_field(
     Returns: An aray with object locations.
 
     """
-
+    
     # General idea of this algorithm: Assign a probability to each cell, and sample from that probability table
     # without replacement to get obstacle locations.
     # If we also avoid overlapping obstacles, we set the probabilities for all cells to zero where generating an
     # obstacle would overlap with an existing one. This isn't vectorized and thus much slower.
-
+    
     range_length = range_end - range_start
-
+    
     cell_count = range_length * x_width
-
+    
     # Space an object needs around itself
     object_padding = object_size - 1
-
+    
     # Remove columns where the obstacle would clip into a wall
     cell_count -= 2 * object_padding * range_length
-
+    
     # Remove upper/lower rows where obstacles might clip into disallowed territory
     # We subtract 2 from the width because those cells were already deleted in the previous step
     cell_count -= 2 * object_padding * (x_width - 2)
-
+    
     # Width/Height of the area where obstacles may be generated (this excludes safety margins at the walls)
     generated_width = x_width - 2 * object_padding
     generated_height = range_length - 2 * object_padding
-
+    
     if normalized_object_placement:
         row_probabilities = scipy.stats.binom.pmf(
             k=np.arange(generated_width), p=0.5, n=generated_width
         )
-
+        
         # Divide probabilities by number of rows so the total probability over all rows sums to 1
         # We also multiply by row_probabilities.sum() as the sum for one row doesn't quite equal 1 otherwise
         row_probabilities = np.divide(
             row_probabilities, generated_height * row_probabilities.sum()
         )
-
+        
         # Repeat the probabilities of one row, for each row
         probability_table = np.resize(
             row_probabilities, new_shape=generated_width * generated_height
         )
-
+    
     else:
         if allow_overlapping_objects:
             probability_table = None
         else:
             # Unnormalized uniform probabilities, because they'll be normalized later on.
             probability_table = np.ones(shape=(generated_width, generated_height))
-
+    
     # Generate obstacles using numpy vectorization
     if allow_overlapping_objects:
         object_indexes = np.random.choice(
             a=cell_count, size=number_of_objects, p=probability_table, replace=False
         )
-
+    
     # Generate objects one by one
     else:
         object_indexes = np.zeros(number_of_objects, dtype=np.int32)
-
+        
         for i in range(number_of_objects):
             total_weight = probability_table.sum()
             if total_weight == 0:
                 print("Warning: Insufficient space to place all obstacles!")
                 object_indexes.resize((i - 1,))
                 break
-
+            
             # Normalize weights to get probabilities
             probability_table = np.divide(probability_table, total_weight)
-
+            
             object_indexes[i] = np.random.choice(a=cell_count, p=probability_table.flat)
-
+            
             # Set probabilities to zero for all cells where another obstacle
             # would collide with this one
             x, y = np.unravel_index(
                 indices=object_indexes[i], shape=(generated_width, generated_height)
             )
-
+            
             # Range of x values that must not get another obstacle to avoid collisions (max exclusive)
             # min/max to avoid going over the array bounds
             min_invalid_x = max(x + 2 * (-object_size + 1), 0)
             max_invalid_x = min(x + 2 * object_size - 1, generated_width)
-
+            
             # Range of y values that must not get another obstacle to avoid collisions (max exclusive)
             # min/max to avoid going over the array bounds
             min_invalid_y = max(y + 2 * (-object_size + 1), 0)
             max_invalid_y = min(y + 2 * object_size - 1, generated_height)
-
+            
             # Set the corresponding ranges to 0
             probability_table[
             min_invalid_x:max_invalid_x, min_invalid_y:max_invalid_y
             ] = 0
-
+    
     # Convert flattened indices back to 2D indices
     x, y = np.unravel_index(
         indices=object_indexes,
@@ -406,7 +406,7 @@ def generate_object_field(
     )
     y = np.add(y, range_start + object_padding)
     x = np.add(x, object_padding)
-
+    
     # Convert vectors of x and y indices into an array of 2D-vectors
     return np.stack(arrays=(x, y), axis=1)
 
@@ -441,15 +441,15 @@ def create_dict_of_world_walls(
             current_wall_change_number = 0
             counter = 0
             count_same_size = 0
-
+            
             for index in range(free_range[0], free_range[1]):
-
+                
                 # x and y value of the wall
                 wall_dict[str(index)] = [
                     0 + current_wall_change_number,
                     world_x_width + 1 - current_wall_change_number,
                 ]
-
+                
                 # check if the funnel should get smaller or wider
                 if counter < lengths_of_funnel:
                     # this if prevents from making the funnel too small --> the agent still has to pass
@@ -468,20 +468,20 @@ def create_dict_of_world_walls(
                         count_same_size -= 1
                     else:
                         current_wall_change_number -= 1
-
+                
                 counter += 1
-
+    
     # create dict entry for all y values that are not covered in the free ranges
     for index in range(1, world_y_height + 1):
         if str(index) not in wall_dict:
             wall_dict[str(index)] = [0, world_x_width + 1]
-
+    
     # sorting
     wall_dict_int_keys = {int(k): v for k, v in wall_dict.items()}
     sorted_wall_dict = dict()
     for wall_tuple in sorted(wall_dict_int_keys.items()):
         sorted_wall_dict[str(wall_tuple[0])] = wall_tuple[1]
-
+    
     return sorted_wall_dict
 
 
@@ -518,7 +518,7 @@ def create_drift_ranges(
     length_of_safe_ranges = 0
     for safe_range in safe_ranges:
         length_of_safe_ranges += safe_range[1] - safe_range[0]
-
+    
     # ensure that the number of drifts with its lengths fit in the world
     if (number_of_drifts * drift_length) > (world_y_height - length_of_safe_ranges):
         raise EnvironmentError(
@@ -526,7 +526,7 @@ def create_drift_ranges(
                 world_y_height=world_y_height, number_of_drifts=number_of_drifts
             )
         )
-
+    
     for drift_number in range(number_of_drifts):
         counter = 0
         not_found_range = True
@@ -545,12 +545,12 @@ def create_drift_ranges(
                 random_drift_starting_position,
                 random_drift_starting_position + drift_length,
             )
-
+            
             # check if new drift is overlapping with already existing drifts or safe ranges
             overlapping_with_disallowed_range = False
-
+            
             disallowed_ranges = drift_ranges + safe_ranges
-
+            
             for disallowed_range in disallowed_ranges:
                 if not (
                         len(
@@ -567,7 +567,7 @@ def create_drift_ranges(
                     overlapping_with_disallowed_range = True
                     counter += 1
                     break
-
+            
             if not overlapping_with_disallowed_range:
                 random_number = rnd.random()
                 is_visible = random_number >= invisible_drift_probability
@@ -576,13 +576,13 @@ def create_drift_ranges(
                         < random_number - invisible_drift_probability
                         <= fake_drift_probability
                 )
-
+                
                 # the drifts randomly choose between a drift to the right and a drift to the left
                 if not use_variable_drift_intensity:
                     drift_direction_and_intensity = rnd.choice([-1, 1])
                 else:
                     drift_direction_and_intensity = rnd.choice([-3, -2, -1, 1, 2, 3])
-
+                
                 drift_ranges.append(
                     [
                         random_drift_starting_position,
@@ -593,7 +593,7 @@ def create_drift_ranges(
                     ]
                 )
                 not_found_range = False
-
+    
     drift_ranges = sorted(drift_ranges, key=lambda x: x[0])
     return drift_ranges
 
@@ -628,38 +628,38 @@ def create_agent_observation(
     Returns: returns an agent observation matrix of shape: (channels, height, width)
 
     """
-
+    
     current_relevant_object_dict_list = find_visible_objects(
         following_observation_size=following_observation_size,
         object_dict_list=object_dict_list,
         agent_y_position=agent_y_position,
         agent_size=agent_size,
     )
-
+    
     # The width + 2 is because we have entries for the walls on the left and right, which don't count
     # towards the world width.
     matrix = np.zeros(
         shape=(following_observation_size, world_x_width + 2), dtype=np.int16
     )
-
+    
     add_drift_to_observation(
         observation_start_row=agent_y_position - agent_size + 1,
         following_observation_size=following_observation_size,
         drift_ranges=drift_ranges,
         matrix=matrix,
     )
-
+    
     for index in range(following_observation_size):
         matrix_row = matrix[index, :]
-
+        
         current_y_position = agent_y_position + index - agent_size + 1
-
+        
         add_funnels_to_observation(
             current_y_position=current_y_position,
             walls_dict=walls_dict,
             matrix_row=matrix_row,
         )
-
+        
         if object_type == "obstacle":
             add_objects_to_observation(
                 current_relevant_object_dict_list=current_relevant_object_dict_list,
@@ -674,7 +674,7 @@ def create_agent_observation(
                 matrix_row=matrix_row,
                 symbol=2,
             )
-
+        
         add_agent_to_observation(
             agent_size=agent_size,
             agent_x_position=agent_x_position,
@@ -683,7 +683,7 @@ def create_agent_observation(
             world_x_width=world_x_width,
             no_crashes=no_crashes,
         )
-
+    
     # gymnasium expects an int64 numpy array
     return np.array(matrix, dtype=np.int64)
 
@@ -729,7 +729,7 @@ def add_drift_to_observation(
     # Per default, there is no drift on either side, just the walls
     matrix[:, 0] = -1
     matrix[:, -1] = -1
-
+    
     for start, end, drift, is_visible, is_fake in drift_ranges:
         # Check whether either end of a drift is visible in the observation space, and the drift is visible
         if (
@@ -743,7 +743,7 @@ def add_drift_to_observation(
         ) and is_visible:
             start_index = max(start - observation_start_row, 0)
             end_index = min(end - observation_start_row, following_observation_size)
-
+            
             if drift < 0:
                 matrix[start_index: end_index + 1, -1] = -5
             elif drift > 0:
@@ -773,14 +773,13 @@ def find_visible_objects(
                 and obj["y"] + obj["size"] - 1 >= agent_y_position - agent_size + 1
         ):
             relevant_object_dict_list.append(obj)
-
+    
     return relevant_object_dict_list
 
 
 def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: int, task_type: str,
-                              current_reward_function: str, x_position_of_agent: int, y_position_of_agent: int,
-                              object_dict_list: list[dict] = None, no_crashes: bool = True) -> \
-        tuple[int, list[dict]]:
+                              x_position_of_agent: int, y_position_of_agent: int, object_dict_list: list[dict] = None,
+                              no_crashes: bool = True) -> tuple[int, list[dict]]:
     current_reward_gaussian = 0
     # remove agent from state
     blurred_state = copy.deepcopy(state)
@@ -792,9 +791,9 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
         blurred_state[blurred_state == -1] = 0
     # replace walls (-1)(maybe already removed through no crashes) with the highest value (255)
     blurred_state[blurred_state == -1] = 255
-
+    
     range_of_agent = range(-(agent_size - 1), agent_size)
-
+    
     if len(collected_objects) > 0:
         for obj in collected_objects:
             # find positions where agent is on object --> only last row of agent is possible
@@ -806,7 +805,7 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
             agent_positions = [(x_positions_of_agent[index_1], y_positions_of_agent[index_2]) for index_2 in
                                range(len(y_positions_of_agent)) for index_1 in
                                range(len(x_positions_of_agent))]
-
+            
             range_of_object = range(
                 -(math.floor(obj["size"] / 2)),
                 (math.floor(obj["size"] / 2) + 1),
@@ -819,12 +818,12 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
             object_positions = [(x_positions_of_object[index_1], y_positions_of_object[index_2]) for index_2 in
                                 range(len(y_positions_of_object)) for index_1 in
                                 range(len(x_positions_of_object))]
-
+            
             positions_where_agent_is_on_object = list(
                 set(agent_positions).intersection(object_positions)
             )
             # FIXME: what about multiple objects???
-
+            
             if task_type == "coin":
                 for pos in positions_where_agent_is_on_object:
                     # replace values of intersection of agent and coin with 2
@@ -834,7 +833,7 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
                 for pos in positions_where_agent_is_on_object:
                     # replace values of intersection of agent and obstacle with 3
                     blurred_state[pos[1] - y_position_of_agent + 1, pos[0]] = 3
-
+    
     if task_type == "coin":
         # replace nothing (0) with middle value (127)
         blurred_state[blurred_state == 0] = 127
@@ -849,11 +848,11 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
         # replace crash (-10) with the highest value (255)
         # -10 here not possible for crashes, because it would already handled above
         blurred_state[blurred_state == -10] = 255
-
+    
     # apply gaussian filter (7x7)
     # gymnasium expects an int64 numpy array, but gaussian blur only works with int16
     blurred_state = cv2.GaussianBlur(blurred_state.astype(np.int16), (7, 7), 0)
-
+    
     # get values of each pixel of current agent position
     values_of_agent_position = []
     # rows
@@ -868,7 +867,7 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
                 values_of_agent_position.append(
                     blurred_state[i][x_position_of_agent - j]
                 )
-
+    
     for value in values_of_agent_position:
         current_reward_gaussian += abs(value - 255)
     # normalize reward
@@ -945,7 +944,7 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
             agent_size_matrix = (agent_size * 2 - 1) * (agent_size * 2 - 1)  # e.g. agent size = 4 --> 7x7=49
             smallest_reward_obstacle = 2223 + (agent_size_matrix - 9) * 255  # reward when near an obstacle
             normalized_reward = (current_reward_gaussian - smallest_reward_obstacle) / 7.2
-
+    
     # boost (collect) or decrease (dodge) reward when collect objects
     if task_type == "coin":
         normalized_reward = normalized_reward + len(collected_objects) * 500

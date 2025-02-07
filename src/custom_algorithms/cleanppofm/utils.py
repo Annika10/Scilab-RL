@@ -111,7 +111,6 @@ def get_summed_up_reward_of_env_with_predicted_states_hardcoded(env, last_observ
             collected_objects=collected_objects,
             agent_size=agent_size,
             task_type=task_type,
-            current_reward_function="gaussian",
             x_position_of_agent=x_position_of_agent,
             y_position_of_agent=y_position_of_agent)
         
@@ -546,7 +545,7 @@ def calculate_prediction_error(env_name, next_obs_positions, forward_model_predi
 
 def calculate_need_for_control(env, policy, fm_network, logger, position_predicting: bool, prediction_error: float,
                                maximum_number_of_objects: int = 5, last_observation_state: np.array = None) -> tuple[
-    float, float]:
+    float, float, float]:
     """
     Calculate the need for control of the environment by simulating the default trajectory
     and the "optimal" trajectory the agent would choose.
@@ -658,7 +657,7 @@ def calculate_need_for_control(env, policy, fm_network, logger, position_predict
                                         summed_up_reward_optimal_weighted_normalized))
     
     # need for control is high if the rewards are quite different
-    return need_for_control_weighted, summed_up_reward_default_normalized
+    return need_for_control_weighted, summed_up_reward_default_weighted_normalized, summed_up_reward_optimal_weighted_normalized
 
 
 def normalize_rewards(task: str, absolute_reward) -> float:
@@ -784,7 +783,8 @@ def get_next_normalized_reward(last_observation_state: torch.Tensor, action: tor
     
     # remove already overlapping objects
     if task == "collect":
-        collected_objects_of_last_state = get_collected_objects(observation_positions=last_observation, agent_size=2,
+        collected_objects_of_last_state = get_collected_objects(observation_positions=last_observation,
+                                                                agent_size=agent_size,
                                                                 observation_width=observation_width)
         for index in range(2, len(last_observation[0]), 2):
             x_position = int(last_observation[0][index])
@@ -805,7 +805,7 @@ def get_next_normalized_reward(last_observation_state: torch.Tensor, action: tor
     x_position_of_agent = int(
         min(max(agent_size, last_observation[0][0]), observation_width - agent_size + 1))
     y_position_of_agent = int(last_observation[0][1])
-    collected_objects = get_collected_objects(observation_positions=last_observation, agent_size=2,
+    collected_objects = get_collected_objects(observation_positions=last_observation, agent_size=agent_size,
                                               observation_width=observation_width)
     
     # determine state of new positions for reward calculation
@@ -823,7 +823,6 @@ def get_next_normalized_reward(last_observation_state: torch.Tensor, action: tor
         collected_objects=collected_objects,
         agent_size=agent_size,
         task_type=task_type,
-        current_reward_function="gaussian",
         x_position_of_agent=x_position_of_agent,
         y_position_of_agent=y_position_of_agent)
     

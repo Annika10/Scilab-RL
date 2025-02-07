@@ -520,7 +520,6 @@ class MoonlanderWorldEnv(Env):
                                                                                    self.config["world"]["objects"][
                                                                                        "type"],
                                                                                    object_dict_list=self.object_dict_list,
-                                                                                   current_reward_function=self.reward_function,
                                                                                    x_position_of_agent=self.x_position_of_agent,
                                                                                    y_position_of_agent=self.y_position_of_agent,
                                                                                    no_crashes=self.no_crashes)

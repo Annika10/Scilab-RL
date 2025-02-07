@@ -174,7 +174,6 @@ class Agent(nn.Module):
                     collected_objects=collected_objects,
                     agent_size=agent_size,
                     task_type=task_type,
-                    current_reward_function="gaussian",
                     x_position_of_agent=x_position_of_agent,
                     y_position_of_agent=y_position_of_agent)[0] for row in obs_after_action]
                 obs_after_every_action = torch.cat((obs_after_every_action, obs_after_action), dim=1)
@@ -183,7 +182,9 @@ class Agent(nn.Module):
                 rewards_for_every_action_tensor = torch.tensor(rewards_for_every_action[i]).reshape(
                     obs_after_every_action.shape[0],
                     1)
-                obs_after_every_action = torch.cat((obs_after_every_action.to(device=device), rewards_for_every_action_tensor.to(device=device)), dim=1)
+                obs_after_every_action = torch.cat(
+                    (obs_after_every_action.to(device=device), rewards_for_every_action_tensor.to(device=device)),
+                    dim=1)
             obs_for_agent = obs_after_every_action
         
         ##### PREDICT NEXT ACTION #####
