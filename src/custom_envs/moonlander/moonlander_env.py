@@ -103,7 +103,7 @@ class MoonlanderWorldEnv(Env):
         
         self.config = config
         self.reward_function = config["reward_function"]
-        if self.reward_function not in ["simple", "gaussian", "pos_neg"]:
+        if self.reward_function not in ["simple", "gaussian", "pos_neg", "gaussian_with_distance"]:
             raise ValueError(
                 "Reward function {} not implemented".format(self.reward_function)
             )
@@ -157,6 +157,7 @@ class MoonlanderWorldEnv(Env):
         self.already_crashed_objects = []
         self.pos_neg_reward_info_dict_per_step = {}
         self.gaussian_reward_info_per_step = 0
+        self.gaussian_with_distance_reward_info_per_step = 0
         self.simple_reward_info_per_step = 0
         
         # random x position of agent
@@ -491,11 +492,12 @@ class MoonlanderWorldEnv(Env):
             self.crashed = True
             self.simple_reward_info_per_step = -100
             self.gaussian_reward_info_per_step = -1000
+            self.gaussian_with_distance_reward_info_per_step = -1000
             self.pos_neg_reward_info_dict_per_step["pos"] = None
             self.pos_neg_reward_info_dict_per_step["neg"] = None
             if self.reward_function == "simple":
                 actual_reward = -100
-            elif self.reward_function == "gaussian":
+            elif self.reward_function == "gaussian" or self.reward_function == "gaussian_with_distance":
                 actual_reward = -1000
             elif self.reward_function == "pos_neg":
                 raise ValueError(
@@ -506,6 +508,8 @@ class MoonlanderWorldEnv(Env):
         
         # no crash in obstacle or wall OR crash but crashes do not end the episode
         else:
+            # we call each reward function to have all calculated rewards in the info dictionary
+            
             ##### SIMPLE REWARD #####
             reward_simple = self.calculate_simple_reward(collected_objects=collected_objects)
             if self.reward_function == "simple":
@@ -526,6 +530,20 @@ class MoonlanderWorldEnv(Env):
             self.gaussian_reward_info_per_step = reward_gaussian
             if self.reward_function == "gaussian":
                 actual_reward = reward_gaussian
+            
+            ##### GAUSSIAN WITH DISTANCE REWARD #####
+            # FIXME: new normalization for reward needed!
+            # FIXME: testing needed!
+            distance = hlp.calculate_weighted_distance(
+                x_position_of_agent=self.x_position_of_agent, y_position_of_agent=self.y_position_of_agent,
+                following_observation_size=self.following_observations_size, agent_size=self.size,
+                object_dict_list=self.object_dict_list, task=self.task)
+            if self.task == "dodge":
+                self.gaussian_with_distance_reward_info_per_step = reward_gaussian + distance
+            else:
+                self.gaussian_with_distance_reward_info_per_step = reward_gaussian - distance
+            if self.reward_function == "gaussian_with_distance":
+                actual_reward = self.gaussian_with_distance_reward_info_per_step
             
             ##### POS NEG REWARD #####
             reward_pos_neg = self.calculate_pos_neg_reward(collected_objects=collected_objects)
@@ -741,6 +759,7 @@ class MoonlanderWorldEnv(Env):
         # info of rewards
         info = {"simple": self.simple_reward_info_per_step, "gaussian": self.gaussian_reward_info_per_step,
                 "pos_neg": self.pos_neg_reward_info_dict_per_step,
+                "gaussian_with_distance": self.gaussian_with_distance_reward_info_per_step,
                 "number_of_crashed_or_collected_objects": number_of_crashed_or_collected_objects}
         
         self.positions_and_action = self.positions_and_action + [
@@ -1004,9 +1023,12 @@ class MoonlanderWorldEnv(Env):
         # set placeholder for info
         self.pos_neg_reward_info_dict_per_step = {}
         self.gaussian_reward_info_per_step = 0
+        self.gaussian_with_distance_reward_info_per_step = 0
         self.simple_reward_info_per_step = 0
         info = {"simple": self.simple_reward_info_per_step, "gaussian": self.gaussian_reward_info_per_step,
-                "pos_neg": self.pos_neg_reward_info_dict_per_step, "number_of_crashed_or_collected_objects": 0}
+                "pos_neg": self.pos_neg_reward_info_dict_per_step,
+                "gaussian_with_distance": self.gaussian_with_distance_reward_info_per_step,
+                "number_of_crashed_or_collected_objects": 0}
         
         return self.state.flatten(), info
     

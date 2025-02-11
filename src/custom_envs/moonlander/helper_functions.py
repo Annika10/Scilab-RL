@@ -769,7 +769,7 @@ def find_visible_objects(
     # check which obstacles are in the current observation space
     for obj in object_dict_list:
         if (
-                agent_y_position + following_observation_size >= obj["y"] - obj["size"] + 1
+                agent_y_position - 1 + following_observation_size - 1 >= obj["y"] - obj["size"] + 1
                 and obj["y"] + obj["size"] - 1 >= agent_y_position - agent_size + 1
         ):
             relevant_object_dict_list.append(obj)
@@ -951,3 +951,57 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
     else:
         normalized_reward = normalized_reward - len(collected_objects) * 500
     return int(normalized_reward), object_dict_list
+
+
+def calculate_weighted_distance(x_position_of_agent: int, y_position_of_agent: int, following_observation_size: int,
+                                agent_size: int, task: str, object_dict_list: list[dict] = None) -> int:
+    distance = 0
+    number_of_reachable_objects = 0
+    number_of_crashed_objects = 0
+    current_object_dict_list = find_visible_objects(following_observation_size=following_observation_size,
+                                                    object_dict_list=object_dict_list,
+                                                    agent_y_position=y_position_of_agent, agent_size=agent_size)
+    
+    for object_pos in current_object_dict_list:
+        
+        # non-reachable objects not relevant for dodging or collecting
+        reachable_object = False
+        y_distance = abs((object_pos["y"] + object_pos["size"] - 1) - (y_position_of_agent - agent_size + 1))
+        if object_pos["x"] < x_position_of_agent:
+            # check if the right side of the agent can pass the left side of the object
+            if y_distance * agent_size >= (x_position_of_agent - agent_size + 1) - (
+                    object_pos["x"] + object_pos["size"] - 1):
+                reachable_object = True
+                number_of_reachable_objects += 1
+            
+            if x_position_of_agent - agent_size + 1 <= object_pos["x"] + object_pos["size"] - 1:
+                number_of_crashed_objects += 1
+        elif object_pos["x"] > x_position_of_agent:
+            if y_distance * agent_size >= (object_pos["x"] - object_pos["size"] + 1) - (
+                    x_position_of_agent + agent_size - 1):
+                reachable_object = True
+                number_of_reachable_objects += 1
+            
+            if x_position_of_agent + agent_size - 1 >= object_pos["x"] - object_pos["size"] + 1:
+                number_of_crashed_objects += 1
+        else:
+            reachable_object = True
+            number_of_reachable_objects += 1
+            number_of_crashed_objects += 1
+        
+        if reachable_object:
+            # weight the x distance by the distance on the y axis
+            weight_of_object_pos = -1 / (following_observation_size + 2) * (
+                math.sqrt(math.pow(object_pos["y"] - y_position_of_agent, 2))) + 1
+            distance += weight_of_object_pos * (math.sqrt(math.pow(object_pos["x"] - x_position_of_agent, 2)))
+    
+    if task == "collect" and number_of_reachable_objects > 0:
+        distance = distance * number_of_reachable_objects
+        # for collect: we minimize distance, but maximize reward, so we have to multiply the distance with -1
+        distance = -1 * distance
+    
+    if task == "dodge" and number_of_reachable_objects > 0:
+        # for dodge: we minimize distance and minimize reward, but we punish, if we would crash
+        distance = distance / (number_of_reachable_objects + number_of_crashed_objects)
+    
+    return distance

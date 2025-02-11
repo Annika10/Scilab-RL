@@ -9,7 +9,7 @@ from src.custom_envs.register_envs import register_custom_envs
 import warnings
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
-
+from PIL import Image
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
 from src.utils.animation_util import LiveAnimationPlot
 from custom_envs import ROOT_DIR
@@ -186,6 +186,33 @@ def evaluate_policy(
         current_lengths += 1
         
         ##### MY CODE #####
+        if actions[0] == 0:
+            dodge_summed_up_rewards_default = env.envs[0].env.env.env.active_summed_up_rewards_default
+            dodge_summed_up_rewards_optimal = env.envs[0].env.env.env.active_summed_up_rewards_optimal
+            collect_summed_up_rewards_default = env.envs[0].env.env.env.inactive_summed_up_rewards_default
+            collect_summed_up_rewards_optimal = env.envs[0].env.env.env.inactive_summed_up_rewards_optimal
+        else:
+            dodge_summed_up_rewards_default = env.envs[0].env.env.env.inactive_summed_up_rewards_default
+            dodge_summed_up_rewards_optimal = env.envs[0].env.env.env.inactive_summed_up_rewards_optimal
+            collect_summed_up_rewards_default = env.envs[0].env.env.env.active_summed_up_rewards_default
+            collect_summed_up_rewards_optimal = env.envs[0].env.env.env.active_summed_up_rewards_optimal
+        
+        observation_for_rendering = env.envs[0].env.env.env.observation_for_rendering
+        a_min = np.min(observation_for_rendering)
+        a_max = np.max(observation_for_rendering)
+        a_scaled = 255 * (observation_for_rendering - a_min) / (a_max - a_min)
+        
+        im = Image.fromarray(a_scaled).convert('RGB')
+        im.save(
+            f"states/state_{counter}_"
+            f"NfC_dodge:{new_observations['need_for_control_dodge']}_"
+            f"rewards_default_dodge:{dodge_summed_up_rewards_default}_"
+            f"rewards_optimal_dodge:{dodge_summed_up_rewards_optimal}_"
+            f"NfC_collect:{new_observations['need_for_control_collect']}_"
+            f"rewards_default_collect:{collect_summed_up_rewards_default}_"
+            f"rewards_optimal_collect:{collect_summed_up_rewards_optimal}_"
+            f"{corrected_inactive_need_for_control}.png")
+        
         need_for_control_dodge.append(new_observations["need_for_control_dodge"])
         need_for_control_collect.append(new_observations["need_for_control_collect"])
         
@@ -499,13 +526,13 @@ if __name__ == "__main__":
     collect_best_model_name = "collect_hard_no_input_noise_15_11_rl_model_best"
     config_file_name_collect_asteroids = "config_collect_hard.yaml"
     two_collect_tasks = True
-    # dodge_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_easy_object_list_30_times_40.csv"]
-    dodge_list_of_object_dict_lists = None
-    # collect_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_hard_object_list_30_times_40.csv"]
-    collect_list_of_object_dict_lists = None
+    dodge_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_easy_object_list_30_times_40.csv"]
+    # dodge_list_of_object_dict_lists = None
+    collect_list_of_object_dict_lists = dict_of_filename_to_object_dict_list["collect_hard_object_list_30_times_40.csv"]
+    # collect_list_of_object_dict_lists = None
     ranges_inverted = True
     minimum_following_frames = 5
-    # # minimum_following_frames = None
+    # minimum_following_frames = None
     
     # mode = "switch_per_percentage"
     # percentage_pairs = [[0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
@@ -536,7 +563,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     register_custom_envs()
     
-    n_eval_episodes = 1
+    n_eval_episodes = 10
     
     print("CURRENTLY EVALUATING HARD HARD INPUT NOISE")
     
@@ -572,7 +599,7 @@ if __name__ == "__main__":
                                                   render=True, action_sequence=action_sequence)
     elif mode == "switch_per_NfC":
         mean_reward, std_reward = evaluate_policy(env=env, n_eval_episodes=n_eval_episodes, deterministic=True,
-                                                  render=False, switch_per_NfC=True,
+                                                  render=True, switch_per_NfC=True,
                                                   minimum_following_frames=minimum_following_frames)
     elif mode == "switch_per_percentage":
         directory = ROOT_DIR / "logs"
