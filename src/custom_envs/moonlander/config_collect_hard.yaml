@@ -39,7 +39,7 @@ agent:
   # Fixed initial position for testing
   initial_x_position:
 
-# Reward Function (simple, gaussian, pos_neg)
+# Reward Function (simple, gaussian, pos_neg, gaussian_with_distance)
 reward_function: pos_neg
 
 # Level of logging, affecting both printing and files

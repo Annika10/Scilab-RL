@@ -169,9 +169,19 @@ def register_custom_envs():
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
              kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_easy.yaml'},
              max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian_with_distance-easy-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_dodge_easy.yaml'},
+             max_episode_steps=500)
     register(id="MoonlanderWorld-dodge-gaussian-hard-v0",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
              kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_hard.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian_with_distance-hard-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_dodge_hard.yaml'},
              max_episode_steps=500)
     register(id="MoonlanderWorld-dodge-gaussian-easy-ranges-inverted-v0",
              entry_point="custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
@@ -205,9 +215,19 @@ def register_custom_envs():
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
              kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_easy.yaml'},
              max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-easy-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_easy.yaml'},
+             max_episode_steps=500)
     register(id="MoonlanderWorld-collect-gaussian-hard-v0",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
              kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_hard.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-hard-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_hard.yaml'},
              max_episode_steps=500)
     register(id="MoonlanderWorld-collect-gaussian-easy-ranges-inverted-v0",
              entry_point="custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
