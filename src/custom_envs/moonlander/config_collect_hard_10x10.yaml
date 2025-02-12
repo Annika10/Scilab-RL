@@ -33,7 +33,7 @@ agent:
   # Size of the agent. A size of 1 corresponds to the agent taking up one cell,
   # a size of 2 corresponds to the agent taking up a 3x3 square, etc.
   # Note: Size also affects objects
-  size: 2
+  size: 1
   # Number of cells that the observation contains
   observation_height: 10
   # Fixed initial position for testing
