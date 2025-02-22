@@ -512,9 +512,9 @@ def register_metaworld_envs():
 def register_custom_test_envs():
     register(id="MoonlanderWorld-dodge-gaussian-hard-v0",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
-             kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_hard.yaml'},
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_hard_test.yaml'},
              max_episode_steps=500)
     register(id="MoonlanderWorld-collect-gaussian-hard-v0",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
-             kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_hard.yaml'},
+             kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_hard_test.yaml'},
              max_episode_steps=500)
