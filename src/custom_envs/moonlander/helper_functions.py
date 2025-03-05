@@ -997,8 +997,9 @@ def calculate_weighted_distance(x_position_of_agent: int, y_position_of_agent: i
     
     if task == "collect" and number_of_reachable_objects > 0:
         distance = distance * number_of_reachable_objects
+        # FIXME:this was wrong?
         # for collect: we minimize distance, but maximize reward, so we have to multiply the distance with -1
-        distance = -1 * distance
+        # distance = -1 * distance
     
     if task == "dodge" and number_of_reachable_objects > 0:
         # for dodge: we minimize distance and minimize reward, but we punish, if we would crash
