@@ -1006,3 +1006,35 @@ def calculate_weighted_distance(x_position_of_agent: int, y_position_of_agent: i
         distance = distance / (number_of_reachable_objects + number_of_crashed_objects)
     
     return distance
+
+
+def to_image(state: np.array) -> np.array:
+    """
+    Args:
+        state: A state from the moonlander environment
+
+    Returns: The same state with the values of the matrix rescaled to values between [0, 255],
+    which can be used as an image.
+    """
+    
+    # we have to upscale our state because the CNN in the policy has to big kernel size and reduces the image too much
+    # Duplicate each entry by ten in both dimensions
+    state = np.repeat(np.repeat(state, 10, axis=0), 10, axis=1)
+    
+    image = np.full((300, 420, 3), 255, dtype=np.uint8)
+    # make agent black
+    image[state == 1] = 0
+    # make coins green
+    image[state == 2] = [0, 128, 0]
+    # make obstacles red
+    image[state == 3] = [255, 0, 0]
+    # make walls blue
+    image[state == -1] = [0, 0, 255]
+    # make crashes yellow
+    image[state == -10] = [255, 255, 0]
+    
+    # FIXME: channel-first is recommended by stable baselines???
+    # https://stable-baselines3.readthedocs.io/en/master/guide/custom_env.html
+    image_channel_first = np.transpose(image, (2, 0, 1))
+    
+    return image
