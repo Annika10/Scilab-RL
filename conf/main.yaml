@@ -24,6 +24,37 @@ env_kwargs: { }
 render: 'none' # 'display', 'record', or anything else for neither one
 render_freq: 1 # epochs
 render_metrics_train: [
+  # 'train/rollout_rewards_step',
+  #  'train/rollout_rewards_mean',
+  #  'fm/fw_loss',
+  #  'train/predicted_reward',
+  #  'train/predicted_rewards_mean',
+  #  'train/reward_with_future_reward_estimation_corrective',
+  #  'train/reward_with_future_reward_estimation_corrective_mean',
+  # 'train/prediction_error',
+  #  'train/prediction_error_mean',
+  'eval/rollout_rewards_step',
+  'eval/number_of_crashed_or_collected_objects',
+  # 'eval/predicted_rewards',
+  # 'eval/predicted_rewards_mean',
+  #  'eval/reward_with_future_reward_estimation_corrective',
+  #  'eval/prediction_error',
+  'eval/need_for_control',
+  'eval/soc',
+  #  'eval/action',
+  #  'eval/last_position',
+  #  'eval/expected_new_position',
+  #  'eval/predicted_x_position',
+  #  'eval/new_position'
+  # meta env
+  #'train/rollout_rewards_step',
+  #'train/rollout_rewards_mean',
+  #'train/rollout_rewards_dodge_step',
+  #'train/rollout_rewards_dodge_mean',
+  #'train/rollout_rewards_collect_step',
+  #'train/rollout_rewards_collect_mean',
+]
+render_metrics_test: [
   #  'train/rollout_rewards_step',
   #  'train/rollout_rewards_mean',
   #  'fm/fw_loss',
@@ -33,21 +64,38 @@ render_metrics_train: [
   #  'train/reward_with_future_reward_estimation_corrective_mean',
   #  'train/prediction_error',
   #  'train/prediction_error_mean',
-  #  'eval/rollout_rewards_step',
-  #  'eval/number_of_crashed_or_collected_objects',
-  #  'eval/predicted_rewards',
-  #  'eval/predicted_rewards_mean',
+  'eval/rollout_rewards_step',
+  #'eval/number_of_crashed_or_collected_objects',
+  #'eval/predicted_rewards',
+  #'eval/predicted_rewards_mean',
   #  'eval/reward_with_future_reward_estimation_corrective',
-  #  'eval/prediction_error',
+  #'eval/prediction_error',
+  #  'train/rollout_rewards_step',
+  #  'train/rollout_rewards_dodge_step',
+  #  'train/rollout_rewards_collect_step',
+  #'eval/mean_reward',
+
   # meta env
-  'train/rollout_rewards_step',
-  'train/rollout_rewards_mean',
-  'train/rollout_rewards_dodge_step',
-  'train/rollout_rewards_dodge_mean',
-  'train/rollout_rewards_collect_step',
-  'train/rollout_rewards_collect_mean',
-]
-render_metrics_test: [
+  "eval/action_meta",
+  #"eval/dodge_position_before",
+  # "eval/collect_position_before",
+  #"eval/dodge_action",
+  # "eval/collect_action",
+  #"eval/dodge_next_position",
+  # "eval/collect_next_position",
+  #"eval/predicted_dodge_next_position",
+  # "eval/predicted_collect_next_position",
+  # "eval/input_noise",
+  #  "eval/prediction_error_dodge",
+  #  "eval/prediction_error_collect",
+  "eval/need_for_control_dodge",
+  "eval/need_for_control_collect",
+  #  "eval/SoC_dodge",
+  #  "eval/SoC_collect",
+  #  "eval/reward_dodge",
+  #  "eval/reward_collect",
+  #  "eval/dodge_object_crashed",
+  #  "eval/collect_object_collected"
 ]
 render_frames_per_clip: 0 # Number of frames per clip when recording. If set to 0, one episode is recorded.
 
@@ -107,3 +155,7 @@ hydra:
   sweep:
     dir: ${base_logdir}/${git_label:}/${env}/${now:%H-%M-%S}
     subdir: ${hydra.job.num}
+
+
+# if the observation is an image
+image_observation: 0

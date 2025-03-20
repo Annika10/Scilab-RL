@@ -262,23 +262,15 @@ class MoonlanderWorldEnv(Env):
             int(world_config["y_height"] - self.y_position_of_agent + 1),
         )
         
-        # self.observation_space = spaces.Box(
-        #     low=-10,
-        #     high=3,
-        #     shape=(self.following_observations_size * (world_config["x_width"] + 2),),
-        #     dtype=np.int64,
-        # )
         self.observation_space = spaces.Box(
-            low=0,
-            high=255,
-            # Same shape as the moonlander environment, but with RGB channels added
-            shape=(3, self.following_observation_size * 10, (world_config["x_width"] + 2) * 10),
-            dtype=np.uint8,
+            low=-10,
+            high=3,
+            shape=(self.following_observation_size * (world_config["x_width"] + 2),),
+            dtype=np.int64,
         )
         
         # INITIAL STATE
         self.update_observation()
-        self.state = hlp.to_image(state=self.state)
         self.rendering_first_time = True
         
         self.information_for_each_step = [[self.state, "Nan", "Nan"]]
@@ -791,7 +783,7 @@ class MoonlanderWorldEnv(Env):
         
         self.step_counter += 1
         # return step information
-        return hlp.to_image(state=self.state), reward, self.is_done(), truncated, info
+        return self.state.flatten(), reward, self.is_done(), truncated, info
     
     def render(self):
         # needed to avoid error X Error of failed request:  BadWindow (invalid Window parameter)
@@ -1030,7 +1022,7 @@ class MoonlanderWorldEnv(Env):
                 "gaussian_with_distance": self.gaussian_with_distance_reward_info_per_step,
                 "number_of_crashed_or_collected_objects": 0}
         
-        return hlp.to_image(state=self.state), info
+        return self.state.flatten(), info
     
     def set_forward_model_prediction(self, new_forward_model_prediction: torch.tensor) -> None:
         self.forward_model_prediction = new_forward_model_prediction

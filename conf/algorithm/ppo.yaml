@@ -4,4 +4,4 @@ verbose: True
 
 policy: 'CnnPolicy' # use MultiInputPolicy when using an environment with DictObs,
 # CnnPolicy when using an environment with image observations,
-# otherwise MultiInputPolicy
+# otherwise MlpPolicy

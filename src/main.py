@@ -22,6 +22,7 @@ from src.utils.mlflow_util import setup_mlflow, get_hyperopt_score, log_params_f
 from src.utils.custom_logger import setup_logger
 from src.utils.custom_callbacks import EarlyStopCallback, EvalCallback, CustomEvalCallback, CustomEvalCallbackMetaAgent
 from src.utils.custom_wrappers import DisplayWrapper, RecordVideo
+from src.custom_envs.moonlander.image_wrapper import ImageWrapperEnv
 
 # make git_label available in hydra
 OmegaConf.register_new_resolver("git_label", get_git_label)
@@ -30,7 +31,7 @@ OmegaConf.register_new_resolver("git_label", get_git_label)
 def get_env_instance(cfg, logger):
     train_env = gym.make(cfg.env, **cfg.env_kwargs)
     eval_env = gym.make(cfg.env, **cfg.env_kwargs)
-
+    
     # wrappers for rendering
     train_render_schedule = get_train_render_schedule(cfg.render_freq)
     eval_render_schedule = get_eval_render_schedule(cfg.render_freq, cfg.n_test_rollouts)
@@ -60,33 +61,38 @@ def get_env_instance(cfg, logger):
                                metric_keys=cfg.render_metrics_test,
                                video_length=cfg.render_frames_per_clip,
                                logger=logger)
-
+    
     # The following gym wrappers can be added via commandline parameters,
     # e.g. use +flatten_obs=1 to use the FlattenObservation wrapper
     if 'flatten_obs' in cfg and cfg.flatten_obs:
         train_env = gym.wrappers.FlattenObservation(train_env)
         eval_env = gym.wrappers.FlattenObservation(eval_env)
-
+    
     if 'clip_action' in cfg and cfg.clip_action:
         train_env = gym.wrappers.ClipAction(train_env)
         eval_env = gym.wrappers.ClipAction(eval_env)
-
+    
     if 'normalize_obs' in cfg and cfg.normalize_obs:
         train_env = gym.wrappers.NormalizeObservation(train_env)
         eval_env = gym.wrappers.NormalizeObservation(eval_env)
-
+    
     if 'normalize_reward' in cfg and cfg.normalize_reward:
         train_env = gym.wrappers.NormalizeReward(train_env)
         eval_env = gym.wrappers.NormalizeReward(eval_env)
-
+    
     if 'time_aware_observation' in cfg and cfg.time_aware_observation:
         train_env = gym.wrappers.TimeAwareObservation(train_env)
         eval_env = gym.wrappers.TimeAwareObservation(eval_env)
-
+    
+    if 'image_observation' in cfg and cfg.image_observation:
+        print("Wrapping Environment in ImageWrapperEnv")
+        train_env = ImageWrapperEnv(env=train_env)
+        eval_env = ImageWrapperEnv(env=eval_env)
+    
     # At last, wrap in DummyVecEnv. This has to be the last wrapper, because it breaks the .unwrapped attribute.
     train_env = DummyVecEnv([lambda: train_env])
     eval_env = DummyVecEnv([lambda: eval_env])
-
+    
     return train_env, eval_env
 
 
@@ -117,11 +123,11 @@ def get_algo_instance(cfg, logger, env):
 
 def create_callbacks(cfg, logger, eval_env):
     callback = []
-
+    
     if cfg.save_model_freq > 0:
         checkpoint_callback = CheckpointCallback(save_freq=cfg.save_model_freq, save_path=logger.get_dir(), verbose=1)
         callback.append(checkpoint_callback)
-
+    
     if cfg['algorithm'].name == 'cleanppofm':
         eval_callback = CustomEvalCallback(eval_env, n_eval_episodes=cfg.n_test_rollouts,
                                            eval_freq=cfg.eval_after_n_steps,
@@ -138,7 +144,7 @@ def create_callbacks(cfg, logger, eval_env):
         eval_callback = EvalCallback(eval_env, n_eval_episodes=cfg.n_test_rollouts, eval_freq=cfg.eval_after_n_steps,
                                      log_path=logger.get_dir(), best_model_save_path=logger.get_dir(), render=False,
                                      warn=False)
-
+    
     callback.append(eval_callback)
     early_stop_callback = EarlyStopCallback(metric=cfg.early_stop_data_column, eval_freq=cfg.eval_after_n_steps,
                                             threshold=cfg.early_stop_threshold, n_episodes=cfg.early_stop_last_n)
@@ -155,10 +161,10 @@ def main(cfg: DictConfig) -> (float, int):
         run_dir = os.path.split(cfg.restore_policy)[:-1][0]
         run_dir = run_dir + "_restored"
     run_name = cfg['algorithm']['name'] + '_' + cfg['env']
-
+    
     register_custom_envs()
     setup_mlflow(cfg)
-
+    
     with mlflow.start_run(run_name=run_name) as mlflow_run:
         mlflow.log_param('log_dir', run_dir)
         logger = setup_logger(run_dir, run_name, cfg)
@@ -169,13 +175,13 @@ def main(cfg: DictConfig) -> (float, int):
         if cfg['seed'] == 0:
             cfg['seed'] = int(time.time_ns() % 2 ** 32)
         set_global_seeds(cfg.seed)
-
+        
         train_env, eval_env = get_env_instance(cfg, logger)
-
+        
         baseline = get_algo_instance(cfg, logger, train_env)
-
+        
         callback = create_callbacks(cfg, logger, eval_env)
-
+        
         logger.info("Launching training")
         training_finished = False
         total_steps = cfg.eval_after_n_steps * cfg.n_epochs
@@ -196,7 +202,7 @@ def main(cfg: DictConfig) -> (float, int):
                 raise e
         train_env.close()
         eval_env.close()
-
+        
         # after training
         if training_finished:
             hyperopt_score, n_epochs = get_hyperopt_score(cfg, mlflow_run)
@@ -210,7 +216,7 @@ def main(cfg: DictConfig) -> (float, int):
         if cfg["wandb"]:
             wandb.log({"hyperopt_score": hyperopt_score})
             wandb.finish()
-
+    
     return hyperopt_score, n_epochs, run_id
 
 
