@@ -12,6 +12,7 @@ import wandb
 import myosuite
 
 from stable_baselines3.her import HerReplayBuffer
+from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from stable_baselines3.common.vec_env import DummyVecEnv
 
@@ -112,6 +113,9 @@ def get_algo_instance(cfg, logger, env):
             baseline_class = getattr(importlib.import_module('custom_algorithms.' + algo_name), algo_name.upper())
     if 'replay_buffer_class' in alg_kwargs and alg_kwargs['replay_buffer_class'] == 'HerReplayBuffer':
         alg_kwargs['replay_buffer_class'] = HerReplayBuffer
+        alg_kwargs = avoid_start_learn_before_first_episode_finishes(alg_kwargs, env)
+    if 'replay_buffer_class' in alg_kwargs and alg_kwargs['replay_buffer_class'] == 'ReplayBuffer':
+        alg_kwargs['replay_buffer_class'] = ReplayBuffer
         alg_kwargs = avoid_start_learn_before_first_episode_finishes(alg_kwargs, env)
     if cfg.restore_policy is not None:
         baseline = baseline_class.load(cfg.restore_policy, env=env, **alg_kwargs)
