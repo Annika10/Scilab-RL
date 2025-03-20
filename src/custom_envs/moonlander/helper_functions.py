@@ -954,7 +954,7 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
 
 
 def calculate_weighted_distance(x_position_of_agent: int, y_position_of_agent: int, following_observation_size: int,
-                                agent_size: int, task: str, object_dict_list: list[dict] = None) -> int:
+                                agent_size: int, task: str, action: int, object_dict_list: list[dict] = None) -> int:
     distance = 0
     number_of_reachable_objects = 0
     number_of_crashed_objects = 0
@@ -995,17 +995,37 @@ def calculate_weighted_distance(x_position_of_agent: int, y_position_of_agent: i
                 math.sqrt(math.pow(object_pos["y"] - y_position_of_agent, 2))) + 1
             distance += weight_of_object_pos * (math.sqrt(math.pow(object_pos["x"] - x_position_of_agent, 2)))
     
-    if task == "collect" and number_of_reachable_objects > 0:
-        distance = distance * number_of_reachable_objects
-        # FIXME:this was wrong?
-        # for collect: we minimize distance, but maximize reward, so we have to multiply the distance with -1
-        # distance = -1 * distance
+    if task == "collect":
+        if number_of_reachable_objects > 0:
+            distance = distance * number_of_reachable_objects
+            # FIXME:this was wrong?
+            # for collect: we minimize distance, but maximize reward, so we have to multiply the distance with -1
+            # distance = -1 * distance
+        else:
+            # penalty when no object is reachable in the observation, and we do an action to the left or right
+            if action != 1:
+                distance = 0.1
     
     if task == "dodge" and number_of_reachable_objects > 0:
         # for dodge: we minimize distance and minimize reward, but we punish, if we would crash
         distance = distance / (number_of_reachable_objects + number_of_crashed_objects)
     
     return distance
+
+
+def calculate_gaussian_with_distance_reward(x_position_of_agent: int, y_position_of_agent: int,
+                                            following_observation_size: int, agent_size: int, task: str, action: int,
+                                            reward_gaussian: int, object_dict_list: list[dict] = None) -> int:
+    distance = calculate_weighted_distance(x_position_of_agent=x_position_of_agent,
+                                           y_position_of_agent=y_position_of_agent,
+                                           following_observation_size=following_observation_size, agent_size=agent_size,
+                                           object_dict_list=object_dict_list, task=task, action=action)
+    if task == "dodge":
+        gaussian_with_distance_reward_info_per_step = reward_gaussian + distance
+    else:
+        gaussian_with_distance_reward_info_per_step = reward_gaussian - distance
+    
+    return gaussian_with_distance_reward_info_per_step
 
 
 def to_image(state: np.array) -> np.array:

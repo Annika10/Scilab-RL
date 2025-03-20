@@ -257,7 +257,7 @@ class MoonlanderWorldEnv(Env):
         logging.info("walls_dict" + str(walls_dict))
         
         self.crashed = False
-        self.following_observations_size = min(
+        self.following_observation_size = min(
             agent_config["observation_height"],
             int(world_config["y_height"] - self.y_position_of_agent + 1),
         )
@@ -272,7 +272,7 @@ class MoonlanderWorldEnv(Env):
             low=0,
             high=255,
             # Same shape as the moonlander environment, but with RGB channels added
-            shape=(self.following_observations_size * 10, (world_config["x_width"] + 2) * 10, 3),
+            shape=(self.following_observation_size * 10, (world_config["x_width"] + 2) * 10, 3),
             dtype=np.uint8,
         )
         
@@ -388,7 +388,7 @@ class MoonlanderWorldEnv(Env):
         self.crashed = False
         # go down --> go one step further --> y-position changes
         self.y_position_of_agent = int(self.y_position_of_agent) + 1
-        self.following_observations_size = min(
+        self.following_observation_size = min(
             self.config["agent"]["observation_height"],
             int(self.config["world"]["y_height"] - self.y_position_of_agent + 1),
         )
@@ -462,7 +462,7 @@ class MoonlanderWorldEnv(Env):
         drift, etc.)
         """
         self.state = hlp.create_agent_observation(
-            following_observation_size=self.following_observations_size,
+            following_observation_size=self.following_observation_size,
             drift_ranges=self.drift_ranges_with_drift_number,
             walls_dict=self.walls_dict,
             object_dict_list=self.object_dict_list,
@@ -474,7 +474,7 @@ class MoonlanderWorldEnv(Env):
             no_crashes=self.config["no_crashes"],
         )
     
-    def calculate_reward(self) -> tuple[int, int]:
+    def calculate_reward(self, action: int) -> tuple[int, int]:
         """
         calculates reward if the agent has crashed in the wall or in an obstacle
         if agent is in obstacle or wall, reward is -100 & crashed is True
@@ -525,17 +525,11 @@ class MoonlanderWorldEnv(Env):
                 actual_reward = reward_simple
             
             ##### GAUSSIAN REWARD #####
-            reward_gaussian, self.object_dict_list = hlp.calculate_gaussian_reward(state=self.state,
-                                                                                   collected_objects=collected_objects,
-                                                                                   agent_size=self.config["agent"][
-                                                                                       "size"],
-                                                                                   task_type=
-                                                                                   self.config["world"]["objects"][
-                                                                                       "type"],
-                                                                                   object_dict_list=self.object_dict_list,
-                                                                                   x_position_of_agent=self.x_position_of_agent,
-                                                                                   y_position_of_agent=self.y_position_of_agent,
-                                                                                   no_crashes=self.no_crashes)
+            reward_gaussian, self.object_dict_list = hlp.calculate_gaussian_reward(
+                state=self.state, collected_objects=collected_objects, agent_size=self.config["agent"]["size"],
+                task_type=self.config["world"]["objects"]["type"], object_dict_list=self.object_dict_list,
+                x_position_of_agent=self.x_position_of_agent, y_position_of_agent=self.y_position_of_agent,
+                no_crashes=self.no_crashes)
             self.gaussian_reward_info_per_step = reward_gaussian
             if self.reward_function == "gaussian":
                 actual_reward = reward_gaussian
@@ -543,14 +537,11 @@ class MoonlanderWorldEnv(Env):
             ##### GAUSSIAN WITH DISTANCE REWARD #####
             # FIXME: new normalization for reward needed!
             # FIXME: testing needed!
-            distance = hlp.calculate_weighted_distance(
+            reward_gaussian_with_distance = hlp.calculate_gaussian_with_distance_reward(
                 x_position_of_agent=self.x_position_of_agent, y_position_of_agent=self.y_position_of_agent,
-                following_observation_size=self.following_observations_size, agent_size=self.size,
-                object_dict_list=self.object_dict_list, task=self.task)
-            if self.task == "dodge":
-                self.gaussian_with_distance_reward_info_per_step = reward_gaussian + distance
-            else:
-                self.gaussian_with_distance_reward_info_per_step = reward_gaussian - distance
+                following_observation_size=self.following_observation_size, agent_size=self.size,
+                task=self.task, action=action, reward_gaussian=reward_gaussian, object_dict_list=self.object_dict_list)
+            self.gaussian_with_distance_reward_info_per_step = reward_gaussian_with_distance
             if self.reward_function == "gaussian_with_distance":
                 actual_reward = self.gaussian_with_distance_reward_info_per_step
             
@@ -763,7 +754,7 @@ class MoonlanderWorldEnv(Env):
         truncated = False
         
         # CALCULATE REWARD
-        reward, number_of_crashed_or_collected_objects = self.calculate_reward()
+        reward, number_of_crashed_or_collected_objects = self.calculate_reward(action=action)
         
         # info of rewards
         info = {"simple": self.simple_reward_info_per_step, "gaussian": self.gaussian_reward_info_per_step,
@@ -976,7 +967,7 @@ class MoonlanderWorldEnv(Env):
         ### WALLS --> always the same with the same game settings
         
         self.crashed = False
-        self.following_observations_size = min(
+        self.following_observation_size = min(
             agent_config["observation_height"],
             int(world_config["y_height"] - self.y_position_of_agent + 1),
         )
