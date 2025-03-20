@@ -272,7 +272,7 @@ class MoonlanderWorldEnv(Env):
             low=0,
             high=255,
             # Same shape as the moonlander environment, but with RGB channels added
-            shape=(self.following_observation_size * 10, (world_config["x_width"] + 2) * 10, 3),
+            shape=(3, self.following_observation_size * 10, (world_config["x_width"] + 2) * 10),
             dtype=np.uint8,
         )
         

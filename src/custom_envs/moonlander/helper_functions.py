@@ -1053,8 +1053,8 @@ def to_image(state: np.array) -> np.array:
     # make crashes yellow
     image[state == -10] = [255, 255, 0]
     
-    # FIXME: channel-first is recommended by stable baselines???
+    # channel-first is used for stable baselines
     # https://stable-baselines3.readthedocs.io/en/master/guide/custom_env.html
     image_channel_first = np.transpose(image, (2, 0, 1))
     
-    return image
+    return image_channel_first
