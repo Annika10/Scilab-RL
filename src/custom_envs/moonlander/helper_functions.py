@@ -946,8 +946,12 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
             normalized_reward = (current_reward_gaussian - smallest_reward_obstacle) / 7.2
     
     # boost (collect) or decrease (dodge) reward when collect objects
-    if task_type == "coin":
-        normalized_reward = normalized_reward + len(collected_objects) * 500
+    if task_type == "coin" and len(collected_objects) > 0:
+        # more boost the sooner the coin is collected
+        factor_map = {2: 500, 1: 400, 0: 300, -1: 200, -2: 100}
+        booster_list = [factor_map.get(collected_obj['y'] - y_position_of_agent, 0) for collected_obj in
+                        collected_objects]
+        normalized_reward = normalized_reward + sum(booster_list)
     else:
         normalized_reward = normalized_reward - len(collected_objects) * 500
     return int(normalized_reward), object_dict_list
