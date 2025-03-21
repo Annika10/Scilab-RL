@@ -1,0 +1,7 @@
+name: 'ppo_moonlander'
+
+verbose: True
+
+policy: 'MlpPolicy' # use MultiInputPolicy when using an environment with DictObs,
+# CnnPolicy when using an environment with image observations,
+# otherwise MlpPolicy
