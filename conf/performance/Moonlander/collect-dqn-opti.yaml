@@ -4,7 +4,6 @@ hyperopt_criterion: 'eval/mean_reward'
 
 algorithm:
   gamma: 0.99
-  gae_lambda: 0.95
   batch_size: 64
 hydra:
   sweeper:
@@ -26,11 +25,3 @@ hydra:
         type: float
         low: 0.95
         high: 0.99
-      ++algorithm.gae_lambda:
-        type: float
-        low: 0.95
-        high: 0.99
-      ++algorithm.ent_coef:
-        type: float
-        low: 0.005
-        high: 0.05
