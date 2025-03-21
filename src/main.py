@@ -21,7 +21,8 @@ from src.utils.util import get_git_label, set_global_seeds, get_train_render_sch
     avoid_start_learn_before_first_episode_finishes
 from src.utils.mlflow_util import setup_mlflow, get_hyperopt_score, log_params_from_omegaconf_dict
 from src.utils.custom_logger import setup_logger
-from src.utils.custom_callbacks import EarlyStopCallback, EvalCallback, CustomEvalCallback, CustomEvalCallbackMetaAgent
+from src.utils.custom_callbacks import EarlyStopCallback, EvalCallback, EvalCallbackMoonlander, \
+    CustomEvalCallbackMetaAgent
 from src.utils.custom_wrappers import DisplayWrapper, RecordVideo
 from src.custom_envs.moonlander.image_wrapper import ImageWrapperEnv
 
@@ -132,12 +133,12 @@ def create_callbacks(cfg, logger, eval_env):
         checkpoint_callback = CheckpointCallback(save_freq=cfg.save_model_freq, save_path=logger.get_dir(), verbose=1)
         callback.append(checkpoint_callback)
     
-    if cfg['algorithm'].name == 'cleanppofm':
-        eval_callback = CustomEvalCallback(eval_env, n_eval_episodes=cfg.n_test_rollouts,
-                                           eval_freq=cfg.eval_after_n_steps,
-                                           log_path=logger.get_dir(), best_model_save_path=logger.get_dir(),
-                                           render=False,
-                                           warn=False)
+    if cfg['algorithm'].name == 'cleanppofm' or cfg['algorithm'].name == 'ppo_moonlander':
+        eval_callback = EvalCallbackMoonlander(eval_env, n_eval_episodes=cfg.n_test_rollouts,
+                                               eval_freq=cfg.eval_after_n_steps,
+                                               log_path=logger.get_dir(), best_model_save_path=logger.get_dir(),
+                                               render=False,
+                                               warn=False)
     elif cfg['env'].startswith('MetaEnv'):
         eval_callback = CustomEvalCallbackMetaAgent(eval_env, n_eval_episodes=cfg.n_test_rollouts,
                                                     eval_freq=cfg.eval_after_n_steps,

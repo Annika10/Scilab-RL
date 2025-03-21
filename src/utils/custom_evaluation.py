@@ -17,23 +17,18 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # modified copy from stable baselines
-def evaluate_policy(
-        model: "base_class.BaseAlgorithm",
+def evaluate_policy_moonlander(
+        model: "type_aliases.PolicyPredictor",
         env: Union[gym.Env, VecEnv],
         n_eval_episodes: int = 10,
         deterministic: bool = True,
         render: bool = False,
-        callback: Optional[Callable[[Dict[str, Any], Dict[str, Any]], None]] = None,
+        callback: Optional[Callable[[dict[str, Any], dict[str, Any]], None]] = None,
         reward_threshold: Optional[float] = None,
         return_episode_rewards: bool = False,
         warn: bool = True,
-        # from us
-        callback_metric_viz=None,
-        logger=None,
-) -> Union[Tuple[float, float], Tuple[List[float], List[int], List[int]]]:
+) -> Union[tuple[float, float], tuple[list[float], list[int]]]:
     """
-    From the stable-baselines3 evaluation implementation.
-
     Runs policy for ``n_eval_episodes`` episodes and returns average reward.
     If a vector env is passed in, this divides the episodes to evaluate onto the
     different elements of the vector env. This static division of work is done to
@@ -48,7 +43,9 @@ def evaluate_policy(
         results as well. You can avoid this by wrapping environment with ``Monitor``
         wrapper before anything else.
 
-    :param model: The RL agent you want to evaluate.
+    :param model: The RL agent you want to evaluate. This can be any object
+        that implements a `predict` method, such as an RL algorithm (``BaseAlgorithm``)
+        or policy (``BasePolicy``).
     :param env: The gym environment or ``VecEnv`` environment.
     :param n_eval_episodes: Number of episode to evaluate the agent
     :param deterministic: Whether to use deterministic or stochastic actions
@@ -71,7 +68,7 @@ def evaluate_policy(
     from stable_baselines3.common.monitor import Monitor
     
     if not isinstance(env, VecEnv):
-        env = DummyVecEnv([lambda: env])
+        env = DummyVecEnv([lambda: env])  # type: ignore[list-item, return-value]
     
     is_monitor_wrapped = is_vecenv_wrapped(env, VecMonitor) or env.env_is_wrapped(Monitor)[0]
     
@@ -86,6 +83,9 @@ def evaluate_policy(
     n_envs = env.num_envs
     episode_rewards = []
     episode_lengths = []
+    ### added by me
+    episode_number_of_crashed_or_collected_objects = []
+    ###
     
     episode_counts = np.zeros(n_envs, dtype="int")
     # Divides episodes among different sub environments in the vector as evenly as possible
@@ -93,80 +93,32 @@ def evaluate_policy(
     
     current_rewards = np.zeros(n_envs)
     current_lengths = np.zeros(n_envs, dtype="int")
+    ### added by me
     current_number_of_crashed_or_collected_objects = np.zeros(n_envs, dtype="int")
+    ###
     observations = env.reset()
     states = None
-    
-    ### from me
-    episode_number_of_crashed_or_collected_objects = []
-    # Note: you should use vec_env.env_method("get_wrapper_attr", "attribute_name") in Gymnasium v1.0
-    env_name = env.env_method("get_wrapper_attr", "name")[0]
-    ###
-    
+    episode_starts = np.ones((env.num_envs,), dtype=bool)
     while (episode_counts < episode_count_targets).any():
-        
-        ### custom code
-        actions, states, forward_normal = model.predict(observations, state=states, deterministic=deterministic)
-        # for logging: get last position, predicted position and new position
-        observation_width = env.env_method("get_wrapper_attr", "observation_width")[0]
-        observation_height = env.env_method("get_wrapper_attr", "observation_height")[0]
-        agent_size = env.env_method("get_wrapper_attr", "size")[0]
-        position = get_position_and_object_positions_of_observation(obs=torch.tensor(observations),
-                                                                    maximum_number_of_objects=model.maximum_number_of_objects,
-                                                                    observation_width=observation_width,
-                                                                    observation_height=observation_height,
-                                                                    agent_size=agent_size)[0][0]
-        predicted_x_position = min(max(1, forward_normal.mean.cpu().detach().numpy()[0][0]), 10)
-        expected_new_positon = min(max(1, position + (actions[0] - 1)), 10)
-        
-        observations, rewards, dones, infos, prediction_error, need_for_control, soc, reward_with_future_reward_estimation_corrective, _, _, new_positions, _, _ = model.step_in_env(
-            actions=actions,
-            forward_normal=forward_normal)
-        
-        if model.reward_predicting:
-            logger.record("eval/predicted_rewards", float(forward_normal.mean[:, -1].mean()))
-            logger.record_mean("eval/predicted_rewards_mean", float(forward_normal.mean[:, -1].mean()))
-            logger.record("eval/reward_with_future_reward_estimation_corrective",
-                          reward_with_future_reward_estimation_corrective.mean())
-            logger.record_mean("eval/reward_with_future_reward_estimation_corrective_mean",
-                               reward_with_future_reward_estimation_corrective.mean())
-        logger.record("eval/prediction_error", prediction_error)
-        logger.record_mean("eval/prediction_error_mean", prediction_error)
-        logger.record("eval/need_for_control", need_for_control)
-        logger.record_mean("eval/need_for_control_mean", need_for_control)
-        logger.record("eval/soc", soc)
-        logger.record_mean("eval/soc_mean", soc)
-        logger.record("eval/action", actions[0])
-        logger.record("eval/last_position", position)
-        logger.record("eval/expected_new_position", expected_new_positon)
-        logger.record("eval/predicted_x_position", predicted_x_position)
-        logger.record("eval/new_positions", new_positions)
-        # already logged in custom callback
-        logger.record("eval/rollout_rewards_step", float(rewards.mean()))
-        logger.record_mean("eval/rollout_rewards_mean", float(rewards.mean()))
-        
-        # dodge/collect env
-        if "simple" in infos[0].keys():
-            logger.record("eval/number_of_crashed_or_collected_objects",
-                          float(infos[0]["number_of_crashed_or_collected_objects"]))
-        # trigger metric visualization
-        if callback_metric_viz:
-            callback_metric_viz._on_step()
-        
-        if "simple" in infos[0].keys():
-            current_number_of_crashed_or_collected_objects += infos[0]["number_of_crashed_or_collected_objects"]
-        
-        ### until here
-        
+        actions, states = model.predict(
+            observations,  # type: ignore[arg-type]
+            state=states,
+            episode_start=episode_starts,
+            deterministic=deterministic,
+        )
+        new_observations, rewards, dones, infos = env.step(actions)
         current_rewards += rewards
         current_lengths += 1
+        ### added by me
+        current_number_of_crashed_or_collected_objects += infos[0]["number_of_crashed_or_collected_objects"]
+        ###
         for i in range(n_envs):
             if episode_counts[i] < episode_count_targets[i]:
-                
                 # unpack values so that the callback can access the local variables
                 reward = rewards[i]
                 done = dones[i]
                 info = infos[i]
+                episode_starts[i] = done
                 
                 if callback is not None:
                     callback(locals(), globals())
@@ -188,19 +140,19 @@ def evaluate_policy(
                         episode_rewards.append(current_rewards[i])
                         episode_lengths.append(current_lengths[i])
                         episode_counts[i] += 1
-                        
-                        ### from me
-                        episode_number_of_crashed_or_collected_objects.append(
-                            current_number_of_crashed_or_collected_objects[i])
+                    
+                    ### added by me
+                    episode_number_of_crashed_or_collected_objects.append(
+                        current_number_of_crashed_or_collected_objects[i])
+                    ###
                     
                     current_rewards[i] = 0
                     current_lengths[i] = 0
-                    
-                    ### from me
+                    ### added by me
                     current_number_of_crashed_or_collected_objects[i] = 0
-                    
-                    if states is not None:
-                        states[i] *= 0
+                    ###
+        
+        observations = new_observations
         
         if render:
             env.render()
