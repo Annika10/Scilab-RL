@@ -1,7 +1,10 @@
 import unittest
 import os
 import yaml
+from unittest import mock
 import numpy as np
+
+from src.custom_envs.moonlander.helper_functions import read_test_data
 from src.custom_envs.moonlander.meta_env_pretrained import MetaEnvPretrained
 from src.custom_envs.register_envs import register_custom_test_envs
 from gymnasium.error import NameNotFound
@@ -57,6 +60,39 @@ class TestMetaEnvPretrained(unittest.TestCase):
         self.assertEqual(env.need_for_control_dodge, -1)
         self.assertEqual(env.need_for_control_collect, -1)
 
+    def test_step_not_one_or_zero(self) -> None:
+        register_custom_test_envs()
+        env = MetaEnvPretrained("dodge_best_fm_23_08_rl_model_best", "collect_best_fm_23_08_rl_model_best")
+        with self.subTest(
+                "raise Value error, when the action is not 0 or 1"):
+            with self.assertRaises(ValueError):
+                env.actual_step_logic(action=3, task_switch=False)
+
+
+    def test_environment_task_switch(self) -> None:
+        register_custom_test_envs()
+        environment = MetaEnvPretrained("dodge_best_fm_23_08_rl_model_best", "collect_best_fm_23_08_rl_model_best")
+
+        with self.subTest("test if actions are registered in info dict"):
+
+            test_data = read_test_data("test_meta_env")
+
+            #np.testing.assert_array_equal(
+            #    np.array(test_data[0]).flatten(),
+            #    environment.state["image"],
+            #)
+
+            # first step
+            # avoid task
+            state, reward, is_done, truncated, info = environment.step(action=0)
+            self.assertEqual(info["action_meta"], 0)
+            self.assertFalse(is_done)
+
+            # task switch
+            # collect task
+            state, reward, is_done, truncated, info = environment.step(action=1)
+            self.assertEqual(info["action_meta"], 1)
+            self.assertFalse(is_done)
 
 if __name__ == '__main__':
     unittest.main()
