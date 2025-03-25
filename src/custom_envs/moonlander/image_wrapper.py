@@ -70,5 +70,6 @@ class ImageWrapperEnv(gym.Env):
         raise NotImplementedError("Rendering is not implemented for image observations in MoonlanderWorldEnv")
     
     def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
         state, info = self.env.reset()
         return self.to_image(state=state), info
