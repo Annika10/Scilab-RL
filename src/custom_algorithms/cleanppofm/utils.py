@@ -148,7 +148,7 @@ def get_position_and_object_positions_of_observation(obs: torch.Tensor,
     """
     Get the position of the agent and up to maximum_number_of_objects objects in the observation.
     Args:
-        obs: observation
+        obs: observation of size (batch_size, observation_width * observation_height)
         maximum_number_of_objects: the number of objects that are considered in the observation
         observation_width: width of the observation
         observation_height: height of the observation
