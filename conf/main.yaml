@@ -159,3 +159,5 @@ hydra:
 
 # if the observation is an image
 image_observation: 0
+# if the observation consists of the following possible observations
+model_based: 0
