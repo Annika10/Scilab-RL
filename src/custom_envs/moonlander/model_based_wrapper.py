@@ -7,8 +7,7 @@ from src.custom_envs.moonlander.moonlander_env import MoonlanderWorldEnv
 from src.custom_algorithms.cleanppofm.utils import get_position_and_object_positions_of_observation, \
     get_next_position_observation_moonlander, get_observation_of_position_and_object_positions
 
-torch.set_printoptions(threshold=sys.maxsize)
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class ModelBasedWrapperEnv(gym.Env):
     """
@@ -83,7 +82,7 @@ class ModelBasedWrapperEnv(gym.Env):
             observation_height=self.env.observation_height, agent_size=self.env.size, task=self.env.task)
         
         # link actual observation to next observations
-        return torch.cat((torch.tensor(state).unsqueeze(0), next_observations),
+        return torch.cat((torch.tensor(state).unsqueeze(0).to(device=device), next_observations),
                          dim=0).flatten().cpu().detach().numpy().astype(np.int64)
     
     def step(self, action):
