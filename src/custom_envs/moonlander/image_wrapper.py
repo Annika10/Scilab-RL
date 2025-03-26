@@ -18,9 +18,9 @@ class ImageWrapperEnv(gym.Env):
         self.observation_space = gym.spaces.Box(
             low=0,
             high=255,
-            # Same shape as the moonlander environment, but with RGB channels added
+            # Same shape as the moonlander environment, but with a channel for a grayscale image added
             # This was removed: multiplied by ten because otherwise the image gets to small in the CNN
-            shape=(3, env.following_observation_size, (env.config["world"]["x_width"] + 2)),
+            shape=(1, env.following_observation_size, (env.config["world"]["x_width"] + 2)),
             dtype=np.uint8,
         )
     
@@ -34,18 +34,18 @@ class ImageWrapperEnv(gym.Env):
         """
         
         state = state.reshape((self.env.following_observation_size, self.env.config["world"]["x_width"] + 2))
-        image = np.full((self.env.following_observation_size, (self.env.config["world"]["x_width"] + 2), 3),
+        image = np.full((self.env.following_observation_size, (self.env.config["world"]["x_width"] + 2), 1),
                         255, dtype=np.uint8)
         # make agent black
         image[state == 1] = 0
         # make coins green
-        image[state == 2] = [0, 128, 0]
+        image[state == 2] = 64
         # make obstacles red
-        image[state == 3] = [255, 0, 0]
+        image[state == 3] = 128
         # make walls blue
-        image[state == -1] = [0, 0, 255]
+        image[state == -1] = 191
         # make crashes yellow
-        image[state == -10] = [255, 255, 0]
+        image[state == -10] = 255
         
         # channel-first is used for stable baselines
         # https://stable-baselines3.readthedocs.io/en/master/guide/custom_env.html
