@@ -27,6 +27,7 @@ from src.utils.custom_wrappers import DisplayWrapper, RecordVideo
 from src.custom_envs.moonlander.image_wrapper import ImageWrapperEnv
 from src.custom_envs.moonlander.model_based_wrapper import ModelBasedWrapperEnv
 from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
+from src.custom_envs.moonlander.positions_model_based_wrapper import PositionsModelBasedWrapperEnv
 
 # make git_label available in hydra
 OmegaConf.register_new_resolver("git_label", get_git_label)
@@ -93,15 +94,20 @@ def get_env_instance(cfg, logger):
         train_env = ImageWrapperEnv(env=train_env)
         eval_env = ImageWrapperEnv(env=eval_env)
     
-    if "model_based" in cfg and cfg.model_based:
-        print("Wrapping Environment in ModelBasedWrapperEnv")
-        train_env = ModelBasedWrapperEnv(env=train_env)
-        eval_env = ModelBasedWrapperEnv(env=eval_env)
-    
-    if "positions" in cfg and cfg.positions:
-        print("Wrapping Environment in PositionWrapperEnv")
-        train_env = PositionsWrapperEnv(env=train_env)
-        eval_env = PositionsWrapperEnv(env=eval_env)
+    if "model_based" in cfg and cfg.model_based and "positions" in cfg and cfg.positions:
+        print("Wrapping Environment in PositionsModelBasedWrapperEnv")
+        train_env = PositionsModelBasedWrapperEnv(env=train_env)
+        eval_env = PositionsModelBasedWrapperEnv(env=eval_env)
+    else:
+        if "model_based" in cfg and cfg.model_based:
+            print("Wrapping Environment in ModelBasedWrapperEnv")
+            train_env = ModelBasedWrapperEnv(env=train_env)
+            eval_env = ModelBasedWrapperEnv(env=eval_env)
+        
+        if "positions" in cfg and cfg.positions:
+            print("Wrapping Environment in PositionWrapperEnv")
+            train_env = PositionsWrapperEnv(env=train_env)
+            eval_env = PositionsWrapperEnv(env=eval_env)
     
     # At last, wrap in DummyVecEnv. This has to be the last wrapper, because it breaks the .unwrapped attribute.
     train_env = DummyVecEnv([lambda: train_env])

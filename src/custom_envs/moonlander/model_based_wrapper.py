@@ -1,5 +1,3 @@
-import sys
-
 import gymnasium as gym
 import numpy as np
 import torch
@@ -8,6 +6,7 @@ from src.custom_algorithms.cleanppofm.utils import get_position_and_object_posit
     get_next_position_observation_moonlander, get_observation_of_position_and_object_positions
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class ModelBasedWrapperEnv(gym.Env):
     """
