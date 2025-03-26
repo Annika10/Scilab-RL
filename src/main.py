@@ -28,6 +28,7 @@ from src.custom_envs.moonlander.image_wrapper import ImageWrapperEnv
 from src.custom_envs.moonlander.model_based_wrapper import ModelBasedWrapperEnv
 from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
 from src.custom_envs.moonlander.positions_model_based_wrapper import PositionsModelBasedWrapperEnv
+from src.custom_algorithms.ppo_moonlander.custom_cnn import CustomCNN
 
 # make git_label available in hydra
 OmegaConf.register_new_resolver("git_label", get_git_label)
@@ -136,6 +137,12 @@ def get_algo_instance(cfg, logger, env):
     if 'replay_buffer_class' in alg_kwargs and alg_kwargs['replay_buffer_class'] == 'ReplayBuffer':
         alg_kwargs['replay_buffer_class'] = ReplayBuffer
         alg_kwargs = avoid_start_learn_before_first_episode_finishes(alg_kwargs, env)
+    # use custom CNN because the standard CNN's kernels are too big for a 30x42 image
+    if cfg.algorithm.policy == "CnnPolicy":
+        alg_kwargs['policy_kwargs'] = dict(
+            features_extractor_class=CustomCNN,
+            features_extractor_kwargs=dict(features_dim=128),
+        )
     if cfg.restore_policy is not None:
         baseline = baseline_class.load(cfg.restore_policy, env=env, **alg_kwargs)
     else:

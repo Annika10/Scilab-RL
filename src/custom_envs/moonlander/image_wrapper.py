@@ -19,12 +19,8 @@ class ImageWrapperEnv(gym.Env):
             low=0,
             high=255,
             # Same shape as the moonlander environment, but with RGB channels added
-            # and multiplied by ten because otherwise the image gets to small in the CNN
-            shape=(
-                3,
-                env.following_observation_size * 10,
-                (env.config["world"]["x_width"] + 2) * 10
-            ),
+            # This was removed: multiplied by ten because otherwise the image gets to small in the CNN
+            shape=(3, env.following_observation_size, (env.config["world"]["x_width"] + 2)),
             dtype=np.uint8,
         )
     
@@ -37,13 +33,8 @@ class ImageWrapperEnv(gym.Env):
                 channels, which can be used as an image.
         """
         
-        # we have to upscale our state because the CNN in the policy has to big kernel size and reduces the image too much
-        # Duplicate each entry by ten in both dimensions
-        state = np.repeat(
-            np.repeat(state.reshape((self.env.following_observation_size, self.env.config["world"]["x_width"] + 2)), 10,
-                      axis=0), 10, axis=1)
-        
-        image = np.full((self.env.following_observation_size * 10, (self.env.config["world"]["x_width"] + 2) * 10, 3),
+        state = state.reshape((self.env.following_observation_size, self.env.config["world"]["x_width"] + 2))
+        image = np.full((self.env.following_observation_size, (self.env.config["world"]["x_width"] + 2), 3),
                         255, dtype=np.uint8)
         # make agent black
         image[state == 1] = 0
