@@ -1,26 +1,27 @@
 import unittest
 from unittest import mock
+from tests import ROOT_DIR
 
 import numpy as np
 from stable_baselines3.common.env_checker import check_env
 
 from tests.helper_functions_test import load_test_config, read_test_data
-from src.custom_envs.moonlander.helper_functions import create_dict_of_world_walls
 from src.custom_envs.moonlander.moonlander_env import MoonlanderWorldEnv
 
 
 class TestMoonlanderWorldEnvironment(unittest.TestCase):
+
     def test_environment_with_initial_env(self) -> None:
         with self.subTest("test_environment_with_stable_baselines_initial_env"):
-            environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env.yaml")
+            environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env.yaml")
             check_env(environment)
         with self.subTest("test_empty_environment_with_zero_steps"):
             self.assertRaises(ValueError, MoonlanderWorldEnv,
-                              config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/real_empty_env.yaml")
+                              config_file_name=str(ROOT_DIR)+"/test_data/levels/real_empty_env.yaml")
 
 
     def test_environment_always_stay(self) -> None:
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env.yaml")
 
         test_data = read_test_data("test_environment_always_stay")
         with self.subTest("initialisation"):
@@ -47,7 +48,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
             self.assertFalse(is_done)
 
     def test_environment_always_go_right(self) -> None:
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env.yaml")
 
         test_data = read_test_data("test_environment_always_go_right")
         with self.subTest("initialisation"):
@@ -83,7 +84,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
             self.assertTrue(is_done)
 
     def test_environment_always_go_left(self) -> None:
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env.yaml")
 
         test_data = read_test_data("test_environment_always_go_left")
         with self.subTest("initialisation"):
@@ -119,7 +120,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
             self.assertTrue(is_done)
 
     def test_environment_always_go_left_bigger_size(self) -> None:
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env_bigger_agent.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env_bigger_agent.yaml")
 
         test_data = read_test_data("test_environment_always_go_left_bigger_size")
         with self.subTest("initialisation"):
@@ -153,7 +154,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
         ]
 
         # create world with obstacles
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_env_with_obstacles.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_env_with_obstacles.yaml")
 
         test_data = read_test_data("test_environment_with_obstacles_and_always_stay")
         with self.subTest("initialisation"):
@@ -203,7 +204,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
         ]
 
         # create world with obstacles
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_env_with_obstacles.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_env_with_obstacles.yaml")
 
         test_data = read_test_data("test_environment_with_obstacles_and_crash")
         with self.subTest("initialisation"):
@@ -253,7 +254,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
             {"x": 5, "y": 15, "size": 2},
         ]
 
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_env_with_obstacles_bigger_agent.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_env_with_obstacles_bigger_agent.yaml")
 
         test_data = read_test_data("test_environment_with_crash_in_obstacle_and_bigger_size")
 
@@ -293,7 +294,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
             {"x": 2, "y": 8, "size": 2},
         ]
 
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_env_with_obstacles_smaller.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_env_with_obstacles_smaller.yaml")
 
         test_data = read_test_data("test_environment_obstacle_crash_after_passing")
         with self.subTest("initial state"):
@@ -325,7 +326,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
             {"x": 3, "y": 2, "size": 1},
         ]
 
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env.yaml")
 
         test_data = read_test_data("test_environment_multiple_obstacles_multiple_steps")
         with self.subTest("initialisation"):
@@ -352,7 +353,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
             {"x": 3, "y": 3, "size": 1},
         ]
 
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env_collect.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env_collect.yaml")
 
         test_data = read_test_data("test_environment_collect_coins")
         with self.subTest("initialisation"):
@@ -382,7 +383,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
     def test_environment_crash_in_funnel(self) -> None:
 
         # too small for drift
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/easy_env.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/easy_env.yaml")
 
         # the funnels are from 16 to 21 and 28 to 33
         test_data = read_test_data("test_environment_crash_in_funnel")
@@ -406,7 +407,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
 
     def test_environment_crash_in_inner_funnel(self) -> None:
         # too small for drift
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/easy_env.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/easy_env.yaml")
 
         # drift for getting at suitable position
         drift_ranges = [[1, 40, 1, True, False]]
@@ -438,7 +439,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
     ### DRIFT
     def test_drift(self) -> None:
 
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env.yaml")
 
         # hardcode the drift for better testing
         # otherwise the drift would be defined randomly which is difficult to test
@@ -494,7 +495,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
 
     def test_drift_bigger_agent(self) -> None:
 
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env_bigger_agent.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env_bigger_agent.yaml")
 
         # hardcode the drift for better testing
         # otherwise the drift would be defined randomly which is difficult to test
@@ -522,7 +523,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
             self.assertTrue(is_done)
 
     def test_drift_clipping(self) -> None:
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env.yaml")
 
         # hardcode the drift for better testing
         # otherwise the drift would be defined randomly which is difficult to test
@@ -548,7 +549,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
     ) -> None:
 
         # too small for drift
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/whole_level_drift_env.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/whole_level_drift_env.yaml")
 
         test_data = read_test_data(
             "test_environment_drift_in_whole_level_ensure_that_one_can_stay_at_one_position"
@@ -578,7 +579,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
     ### INPUT NOISE
     def test_environment_input_noise(self) -> None:
 
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env.yaml")
 
         test_data = read_test_data("test_environment_input_noise")
         with self.subTest("initialisation"):
@@ -615,7 +616,7 @@ class TestMoonlanderWorldEnvironment(unittest.TestCase):
         config = load_test_config("basic_empty_env")
         config["world"].update({"x_width": 5, "y_height": 4})
         config["agent"]["observation_height"] = 3
-        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name="/home/ohneland/Jobs/COMPAS/Scilab-RL/tests/test_data/levels/basic_empty_env_step_after_done.yaml")
+        environment = MoonlanderWorldEnv(reward_function='simple', config_file_name=str(ROOT_DIR)+"/test_data/levels/basic_empty_env_step_after_done.yaml")
 
         test_data = read_test_data("test_environment_step_after_done")
         with self.subTest("initialisation"):
