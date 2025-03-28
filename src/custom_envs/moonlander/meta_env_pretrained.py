@@ -10,7 +10,6 @@ import numpy as np
 import yaml
 from collections import OrderedDict
 from matplotlib import pyplot as plt
-import matplotlib
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.env_util import make_vec_env
 
