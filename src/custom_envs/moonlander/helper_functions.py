@@ -3,12 +3,8 @@ from typing import List, Dict, Tuple
 import copy
 import math
 import cv2
-import yaml
-import csv
 import numpy as np
 import scipy.stats
-
-from src import ROOT_DIR
 
 
 def create_ranges_of_objects_funnels_and_drifts(
@@ -883,7 +879,7 @@ def calculate_gaussian_reward(state, collected_objects: list[dict], agent_size: 
             normalized_reward = ((current_reward_gaussian - 128) / 0.036) / 10
         # agent size 2 (3x3)
         # reward when no coin is near: 128*9=1152 --> should be 0
-        # lowest reward possible when collecting a coin: 1309 --> should be 500
+        # lowest reward possible when collHEADecting a coin: 1309 --> should be 500
         # the function for this is: f(x) = 0.314x + 1152
         # we calculate the corresponding normalized reward x for the current reward f(x)
         # for reward of 10 when no coin is near:
