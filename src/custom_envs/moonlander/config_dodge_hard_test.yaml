@@ -37,7 +37,7 @@ agent:
   # Number of cells that the observation contains
   observation_height: 10
   # Fixed initial position for testing
-  initial_x_position:
+  initial_x_position: 5
 
 # Reward Function (simple, gaussian, pos_neg)
 reward_function: pos_neg

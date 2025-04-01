@@ -1102,12 +1102,12 @@ class TestUtils(unittest.TestCase):
             matrix_copy_2[2, 3:5] = 3
             matrix_copy_2[3:5, 3:6] = 3
             matrix_copy_2 = matrix_copy_2.flatten()
-            matrix_copy_2 = np.expand_dims(matrix_copy_2.astype(np.float), axis=0)
+            matrix_copy_2 = np.expand_dims(matrix_copy_2.astype(np.float64), axis=0)
 
             matrix_copy_3[2, 3:5] = 2
             matrix_copy_3[3:5, 3:6] = 2
             matrix_copy_3 = matrix_copy_3.flatten()
-            matrix_copy_3 = np.expand_dims(matrix_copy_3.astype(np.float), axis=0)
+            matrix_copy_3 = np.expand_dims(matrix_copy_3.astype(np.float64), axis=0)
 
             normalized_reward, new_state = get_next_normalized_reward(last_observation_state=matrix_copy_0,
                                                                       action=torch.tensor([1]),
