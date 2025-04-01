@@ -16,6 +16,7 @@ from stable_baselines3.common.utils import explained_variance, get_schedule_fn
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
 
 
+##### I DIDN'T CHANGE ANYTHING, IT IS CLASSIC PPO IMPLEMENTATION #####
 class PPO_MOONLANDER(OnPolicyAlgorithm):
     """
     Proximal Policy Optimization algorithm (PPO) (clip version)

@@ -17,14 +17,20 @@ class PositionsWrapperEnv(gym.Env):
             raise NotImplementedError(
                 f"This PositionsWrapperEnv is not implemented for the environment {self.env.unwrapped} yet!")
         
-        if self.env.observation_width + 2 >= self.env.observation_height + self.env.size:
-            maximum_possible_value = self.env.observation_width + 2
+        # need to be read out of the wrapper
+        self.observation_height = self.env.observation_height
+        self.observation_width = self.env.observation_width
+        self.size = self.env.size
+        self.object_dict_list = self.env.object_dict_list
+        
+        if self.observation_width + 2 >= self.observation_height + self.size:
+            maximum_possible_value = self.observation_width + 2
         else:
-            maximum_possible_value = self.env.observation_height + self.env.size
+            maximum_possible_value = self.observation_height + self.size
         
         self.action_space = env.action_space
         self.observation_space = gym.spaces.Box(
-            low=-self.env.size,
+            low=-self.size,
             high=maximum_possible_value,
             shape=(self.maximum_number_of_objects * 2 + 2,),
             dtype=np.int64,
@@ -36,8 +42,8 @@ class PositionsWrapperEnv(gym.Env):
         # numpy because gymnasium.Box does not accept torch tensors
         position_state = get_position_and_object_positions_of_observation(
             obs=torch.tensor(state).unsqueeze(0), maximum_number_of_objects=10,
-            observation_width=self.env.observation_width, observation_height=self.env.observation_height,
-            agent_size=self.env.size).squeeze(0).cpu().detach().numpy().astype(np.int64)
+            observation_width=self.observation_width, observation_height=self.observation_height,
+            agent_size=self.size).squeeze(0).cpu().detach().numpy().astype(np.int64)
         return position_state, reward, done, truncated, info
     
     def render(self, mode="human"):
@@ -50,6 +56,10 @@ class PositionsWrapperEnv(gym.Env):
         # numpy because gymnasium.Box does not accept torch tensors
         position_state = get_position_and_object_positions_of_observation(
             obs=torch.tensor(state).unsqueeze(0), maximum_number_of_objects=10,
-            observation_width=self.env.observation_width, observation_height=self.env.observation_height,
-            agent_size=self.env.size).squeeze(0).cpu().detach().numpy().astype(np.int64)
+            observation_width=self.observation_width, observation_height=self.observation_height,
+            agent_size=self.size).squeeze(0).cpu().detach().numpy().astype(np.int64)
         return position_state, info
+    
+    # needed
+    def set_input_noise(self, new_input_noise: float) -> None:
+        self.input_noise = new_input_noise

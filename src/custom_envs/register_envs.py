@@ -229,6 +229,11 @@ def register_custom_envs():
              kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
                      'config_file_name': 'config_collect_hard.yaml'},
              max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-easy-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_easy.yaml'},
+             max_episode_steps=500)
     register(id="MoonlanderWorld-collect-gaussian-easy-ranges-inverted-v0",
              entry_point="custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
              kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_easy.yaml',
@@ -562,7 +567,7 @@ def register_metaworld_envs():
 
 def register_custom_test_envs():
     filename_small = "hard_object_list_10_times_10.csv"
-
+    
     list_of_filenames = [filename_small]
     dict_of_filename_to_object_dict_list = {}
     for filename in list_of_filenames:
@@ -575,14 +580,15 @@ def register_custom_test_envs():
                 # form string to list of dictionaries
                 list_of_object_dict_lists.append(ast.literal_eval(line[1]))
         dict_of_filename_to_object_dict_list[filename] = list_of_object_dict_lists
-
+    
     register(id="MoonlanderWorld-dodge-gaussian-hard-v0",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
              kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_hard_test.yaml'},
              max_episode_steps=500)
     register(id="MoonlanderWorld-collect-gaussian-hard-v0",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
-             kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_hard_test.yaml'},
+             kwargs={'task': 'collect', 'reward_function': 'gaussian',
+                     'config_file_name': 'config_collect_hard_test.yaml'},
              max_episode_steps=500)
     register(id="MoonlanderWorld-dodge-gaussian-hard-v0-with-object-list",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
@@ -592,7 +598,8 @@ def register_custom_test_envs():
              max_episode_steps=500)
     register(id="MoonlanderWorld-collect-gaussian-hard-v0-with-object-list",
              entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
-             kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_hard_test.yaml',
+             kwargs={'task': 'collect', 'reward_function': 'gaussian',
+                     'config_file_name': 'config_collect_hard_test.yaml',
                      'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
                          "hard_object_list_10_times_10.csv"]},
              max_episode_steps=500)
