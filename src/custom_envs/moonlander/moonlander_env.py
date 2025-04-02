@@ -31,7 +31,7 @@ class MoonlanderWorldEnv(Env):
     
     def __init__(self, task: str = "dodge", reward_function: str = "pos_neg",
                  list_of_object_dict_lists: List[Dict] = None, config_file_name: str = None,
-                 ranges_inverted: bool = False, render_mode: Optional[str] = None):
+                 ranges_inverted: bool = False, render_mode: Optional[str] = None, input_noise_on: bool = False):
         """
         initialises the environment
         Args:
@@ -284,6 +284,10 @@ class MoonlanderWorldEnv(Env):
         
         # input noise
         self.input_noise = 0
+        # internal input noise
+        self.mu = 0
+        self.sigma = 1.5
+        self.input_noise_on = input_noise_on
         
         ### LOGGING
         if verbose_level > 0:
@@ -366,7 +370,7 @@ class MoonlanderWorldEnv(Env):
                 == self.config["world"]["y_height"]
         )
     
-    def apply_action(self, action: int, step_width: int) -> None:
+    def apply_action(self, action: int, step_width: int, internal_input_noise: int = 0) -> None:
         """
         applies an action 0,1, or 2 (left, stay, right) and updates the x position + the widths to the walls
         Args:
@@ -392,7 +396,7 @@ class MoonlanderWorldEnv(Env):
         # next location.
         # input noise variable because with wrapping the env it is not possible to have more than one argument for the step function
         action_movement = self.config["agent"]["size"] * action - self.config["agent"][
-            "size"] + step_width + self.input_noise
+            "size"] + step_width + self.input_noise + internal_input_noise
         
         # Pick out the first drift range that contains the current y position, and take its drift direction value
         (_, _, drift, _, is_drift_fake) = next(
@@ -736,8 +740,13 @@ class MoonlanderWorldEnv(Env):
                 "no more action steps possible at current position in the environment"
             )
         
+        # PRODUCE POTENTIAL INPUT NOISE
+        internal_input_noise = 0
+        if self.input_noise_on and not action == 1:
+            internal_input_noise = self.get_input_noise()
+        
         # APPLY ACTION
-        self.apply_action(action=action, step_width=step_width)
+        self.apply_action(action=action, step_width=step_width, internal_input_noise=internal_input_noise)
         
         # UPDATE OBSERVATION
         self.update_observation()
@@ -1023,6 +1032,11 @@ class MoonlanderWorldEnv(Env):
                 "number_of_crashed_or_collected_objects": 0}
         
         return self.state.flatten(), info
+    
+    def get_input_noise(self) -> int:
+        input_noise = np.random.normal(loc=self.mu, scale=self.sigma)
+        input_noise = int(round(input_noise, 0))
+        return input_noise
     
     def set_forward_model_prediction(self, new_forward_model_prediction: torch.tensor) -> None:
         self.forward_model_prediction = new_forward_model_prediction
