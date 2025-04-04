@@ -260,13 +260,13 @@ def get_position_and_object_positions_of_observation(obs: torch.Tensor,
                     if current_x_coordinate < (first_index_with_one + agent_size - 1):
                         # check if object already started earlier
                         if obs_element.cpu()[
-                            current_x_coordinate - 2 + (observation_width + 2) * max(current_y_coordinate,
-                                                                                     0)] == search_value:
+                            current_x_coordinate - 2 + (observation_width + 2) * min(max(current_y_coordinate, 0),
+                                                                                     29)] == search_value:
                             x_y_coordinates_copy.remove([current_x_coordinate, current_y_coordinate])
                     elif current_x_coordinate > (first_index_with_one + agent_size - 1):
                         if obs_element.cpu()[
-                            current_x_coordinate + 2 + (observation_width + 2) * max(current_y_coordinate,
-                                                                                     0)] == search_value:
+                            current_x_coordinate + 2 + (observation_width + 2) * min(max(current_y_coordinate, 0),
+                                                                                     29)] == search_value:
                             x_y_coordinates_copy.remove([current_x_coordinate, current_y_coordinate])
                 
                 # check if object coordinate is overlapping with the agent at the same x position

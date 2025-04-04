@@ -491,6 +491,15 @@ def register_custom_envs():
                      'collect_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
                          "collect_hard_object_list_30_times_40.csv"]},
              max_episode_steps=500)
+    register(id="MetaEnv-pretrained-without-SoC-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_hard.yaml",
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml"},
+             max_episode_steps=500
+             )
     
     register(id="GridworldEnv-v0",
              entry_point="custom_envs.grid_world.grid_world_env:GridWorldEnv",
