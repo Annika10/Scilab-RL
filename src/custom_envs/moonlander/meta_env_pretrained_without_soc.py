@@ -194,7 +194,7 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         # calculate next belief state
         inactive_next_belief_state = get_next_position_observation_moonlander(
             observations=torch.from_numpy(inactive_last_state), actions=torch.tensor([1]),
-            observation_width=self.observation_width, agent_size=self.agent_size).detach().numpy()
+            observation_width=self.observation_width, agent_size=self.agent_size).cpu().detach().numpy()
         ### END INACTIVE TASK ###
         
         match action:
