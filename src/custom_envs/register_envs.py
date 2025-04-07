@@ -313,6 +313,34 @@ def register_custom_envs():
                      'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
                          "dodge_hard_object_list_30_times_40.csv"]},
              max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-easy-benchmark-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_easy.yaml',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_easy_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-easy-input-noise-benchmark-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_easy.yaml', 'input_noise_on': True,
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_easy_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-hard-benchmark-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_hard.yaml',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_hard_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-hard-input-noise-benchmark-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_hard.yaml', 'input_noise_on': True,
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_hard_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
     
     register(id="MetaEnv-v0",
              entry_point="src.custom_envs.moonlander.meta_env:MetaEnv",
