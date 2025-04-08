@@ -41,7 +41,7 @@ class PositionsWrapperEnv(gym.Env):
         # squeeze to remove a dimension because we have no batches but one step
         # numpy because gymnasium.Box does not accept torch tensors
         position_state = get_position_and_object_positions_of_observation(
-            obs=torch.tensor(state).unsqueeze(0), maximum_number_of_objects=10,
+            obs=torch.tensor(state).unsqueeze(0), maximum_number_of_objects=self.maximum_number_of_objects,
             observation_width=self.observation_width, observation_height=self.observation_height,
             agent_size=self.size).squeeze(0).cpu().detach().numpy().astype(np.int64)
         return position_state, reward, done, truncated, info
@@ -55,7 +55,7 @@ class PositionsWrapperEnv(gym.Env):
         # squeeze to remove a dimension because we have no batches but one step
         # numpy because gymnasium.Box does not accept torch tensors
         position_state = get_position_and_object_positions_of_observation(
-            obs=torch.tensor(state).unsqueeze(0), maximum_number_of_objects=10,
+            obs=torch.tensor(state).unsqueeze(0), maximum_number_of_objects=self.maximum_number_of_objects,
             observation_width=self.observation_width, observation_height=self.observation_height,
             agent_size=self.size).squeeze(0).cpu().detach().numpy().astype(np.int64)
         return position_state, info
