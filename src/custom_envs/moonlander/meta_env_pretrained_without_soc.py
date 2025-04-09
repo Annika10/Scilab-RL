@@ -10,9 +10,9 @@ from stable_baselines3.common.env_util import make_vec_env
 from matplotlib import pyplot as plt
 
 from src.custom_algorithms.ppo_moonlander import PPO_MOONLANDER
-from src.custom_algorithms.cleanppofm.utils import get_next_position_observation_moonlander, \
-    get_observation_of_position_and_object_positions
 from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
+from src.custom_envs.moonlander.utils import get_observation_of_position_and_object_positions, \
+    get_next_position_observation_moonlander
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -119,6 +119,8 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         self.observation_height = \
             self.trained_collect_task_one.env.env_method("get_wrapper_attr", "observation_height")[0]
         self.agent_size = self.trained_collect_task_one.env.env_method("get_wrapper_attr", "size")[0]
+        self.maximum_number_of_objects = \
+            collect_task_one_env.env_method("get_wrapper_attr", "maximum_number_of_objects")[0]
         
         if self.observation_width + 2 >= self.observation_height + self.agent_size:
             maximum_possible_value = self.observation_width + 2
@@ -129,7 +131,7 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         self.observation_space = gym.spaces.Box(
             low=-self.agent_size,
             high=maximum_possible_value,
-            shape=(2 * (collect_task_one_env.env_method("get_wrapper_attr", "maximum_number_of_objects")[0] * 2 + 2),),
+            shape=(2 * (self.maximum_number_of_objects * 2 + 2),),
             dtype=np.int64,
         )
         
@@ -203,12 +205,16 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
                 # collect task one
                 self.state_of_collect_task_one = active_new_state
                 self.state_of_collect_task_two = inactive_next_belief_state
+                collect_task_one_reward = active_reward
+                collect_task_two_reward = actual_inactive_reward
                 collect_task_one_info = active_info
                 collect_task_two_info = actual_inactive_info
             case 1:
                 # collect task two
                 self.state_of_collect_task_one = inactive_next_belief_state
                 self.state_of_collect_task_two = active_new_state
+                collect_task_one_reward = actual_inactive_reward
+                collect_task_two_reward = active_reward
                 collect_task_one_info = actual_inactive_info
                 collect_task_two_info = active_info
             case _:
@@ -220,7 +226,10 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         return self.state, (active_reward + actual_inactive_reward).item(), (
                 active_is_done or inactive_is_done).item(), False, {
             "collect_task_one_collected_objects": collect_task_one_info[0]["number_of_crashed_or_collected_objects"],
-            "collect_task_two_collected_objects": collect_task_two_info[0]["number_of_crashed_or_collected_objects"]}
+            "collect_task_two_collected_objects": collect_task_two_info[0]["number_of_crashed_or_collected_objects"],
+            "collect_task_one_reward": collect_task_one_reward.item(),
+            "collect_task_two_reward": collect_task_two_reward.item(),
+            "action_of_current_task_agent": action_of_task_agent}
     
     def render(self):
         gymnasium_logger.warn("This is not the observation, the meta agent receives")

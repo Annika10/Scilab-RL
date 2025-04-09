@@ -18,8 +18,9 @@ np.set_printoptions(threshold=sys.maxsize)
 
 from src.custom_algorithms.cleanppofm.cleanppofm import CLEANPPOFM
 from src.custom_algorithms.cleanppofm.utils import get_summed_up_reward_of_env_with_predicted_states_hardcoded, \
-    get_position_and_object_positions_of_observation, get_observation_of_position_and_object_positions, \
-    get_next_position_observation_moonlander, calculate_need_for_control
+    calculate_need_for_control_with_forward_model
+from src.custom_envs.moonlander.utils import get_position_and_object_positions_of_observation, \
+    get_observation_of_position_and_object_positions, get_next_position_observation_moonlander
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -459,7 +460,7 @@ class MetaEnvPretrained(gym.Env):
         inactive_summed_up_rewards = np.array([inactive_summed_up_rewards]).astype(np.float64)
         
         # calculate inactive need for control
-        inactive_need_for_control, inactive_summed_up_rewards_default, inactive_summed_up_rewards_optimal = calculate_need_for_control(
+        inactive_need_for_control, inactive_summed_up_rewards_default, inactive_summed_up_rewards_optimal = calculate_need_for_control_with_forward_model(
             env=inactive_model.env,
             policy=inactive_model.policy,
             fm_network=inactive_model.fm_network,

@@ -17,11 +17,13 @@ from torch.nn import functional as F
 from src.custom_algorithms.cleanppofm.forward_model import ProbabilisticSimpleForwardNet, \
     ProbabilisticForwardNetPositionPrediction, ProbabilisticSimpleForwardNetIncludingReward, \
     ProbabilisticForwardNetPositionPredictionIncludingReward
-from src.custom_algorithms.cleanppofm.utils import flatten_obs, get_position_and_object_positions_of_observation, \
-    calculate_prediction_error, get_next_position_observation_moonlander, calculate_need_for_control, normalize_rewards, \
-    get_next_whole_observation, get_observation_of_position_and_object_positions, get_collected_objects
+from src.custom_algorithms.cleanppofm.utils import flatten_obs, calculate_prediction_error_with_forward_model, \
+    calculate_need_for_control_with_forward_model, normalize_rewards
 from src.custom_algorithms.cleanppofm.agent import Agent
 from src.custom_envs.moonlander.helper_functions import calculate_gaussian_reward
+from src.custom_envs.moonlander.utils import get_position_and_object_positions_of_observation, \
+    get_next_whole_observation, get_observation_of_position_and_object_positions, \
+    get_next_position_observation_moonlander, get_collected_objects
 from src.utils.custom_buffer import CustomDictRolloutBuffer as DictRolloutBuffer
 from src.utils.custom_buffer import CustomRolloutBuffer as RolloutBuffer
 
@@ -748,14 +750,14 @@ class CLEANPPOFM:
         need_for_control = 0
         if use_prediction_error:
             ##### CALCULATING PREDICTION ERROR #####
-            prediction_error = calculate_prediction_error(env_name=self.env_name,
-                                                          next_obs_positions=new_positions,
-                                                          forward_model_prediction_normal_distribution=forward_normal,
-                                                          first_possible_x_position=self.agent_size,
-                                                          last_possible_x_position=self.observation_width - self.agent_size + 1)
+            prediction_error = calculate_prediction_error_with_forward_model(env_name=self.env_name,
+                                                                             next_obs_positions=new_positions,
+                                                                             forward_model_prediction_normal_distribution=forward_normal,
+                                                                             first_possible_x_position=self.agent_size,
+                                                                             last_possible_x_position=self.observation_width - self.agent_size + 1)
         if use_need_for_control:
             ##### CALCULATING NEED FOR CONTROL #####
-            need_for_control, summed_up_rewards_default, summed_up_rewards_optimal = calculate_need_for_control(
+            need_for_control, summed_up_rewards_default, summed_up_rewards_optimal = calculate_need_for_control_with_forward_model(
                 env=self.env, policy=self.policy,
                 fm_network=self.fm_network,
                 logger=self.logger,

@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 from src.custom_envs.moonlander.moonlander_env import MoonlanderWorldEnv
-from src.custom_algorithms.cleanppofm.utils import get_position_and_object_positions_of_observation, \
+from src.custom_envs.moonlander.utils import get_position_and_object_positions_of_observation, \
     get_next_position_observation_moonlander
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -2,7 +2,7 @@ from typing import List, Dict
 import numpy as np
 from gymnasium import spaces, Env
 from src.custom_envs.moonlander.moonlander_env import MoonlanderWorldEnv
-from src.custom_algorithms.cleanppofm.utils import get_next_position_observation_moonlander
+from src.custom_envs.moonlander.utils import get_next_position_observation_moonlander
 
 
 class ModelbasedMoonlanderEnv(Env):
@@ -11,7 +11,7 @@ class ModelbasedMoonlanderEnv(Env):
         self.name = "MoonlanderWorldEnv"
         self.actual_environment = MoonlanderWorldEnv(task=task, reward_function=reward_function,
                                                      list_of_object_dict_lists=list_of_object_dict_lists)
-
+        
         self.action_space = spaces.Discrete(3)
         self.observation_space = spaces.Box(
             low=-10,
@@ -27,7 +27,7 @@ class ModelbasedMoonlanderEnv(Env):
                 # "rewards": reward_space
             }
         )
-
+        
         self.current_observation = {
             "observations": np.array(
                 [
@@ -39,14 +39,14 @@ class ModelbasedMoonlanderEnv(Env):
             ),
             # "rewards": np.array([0.0, 0.0, 0.0], dtype=np.float32),
         }
-
+    
     def step(self, action: int):
         current_observation_matrix, reward, is_done, truncated, info = self.actual_environment.step(action)
-
+        
         # new predictions
         observation_predictions = []
         # reward_predictions = []
-
+        
         # get predictions
         if not self.actual_environment.is_done():
             for action in [0, 1, 2]:
@@ -67,7 +67,7 @@ class ModelbasedMoonlanderEnv(Env):
                 np.zeros(self.current_observation["observations"][0].shape),
             ]
             reward_predictions = [0.0, 0.0, 0.0]
-
+        
         self.current_observation["observations"] = np.array(
             [
                 current_observation_matrix,
@@ -79,9 +79,9 @@ class ModelbasedMoonlanderEnv(Env):
         # self.current_observation["rewards"] = np.array(
         #     reward_predictions, dtype=np.float32
         # )
-
+        
         return self.current_observation, reward, is_done, False, info
-
+    
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         current_observation = self.actual_environment.reset()
@@ -96,7 +96,7 @@ class ModelbasedMoonlanderEnv(Env):
             ),
             # "rewards": np.array([0.0, 0.0, 0.0], dtype=np.float32),
         }
-
+        
         # set placeholder for info
         return self.current_observation, {"simple": 0, "gaussian": 0, "pos_neg": 0,
                                           "number_of_crashed_or_collected_objects": 0}
