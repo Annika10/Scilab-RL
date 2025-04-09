@@ -29,7 +29,8 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
                  config_file_name_collect_task_one: str = None, config_file_name_collect_task_two: str = None,
                  list_of_object_dict_lists_collect_task_one: List[Dict] = None,
                  list_of_object_dict_lists_collect_task_two: List[Dict] = None,
-                 render_mode=None, input_noise_in_subtasks_on: bool = False):
+                 render_mode=None, input_noise_in_subtasks_on: bool = False,
+                 consecutive_frames: int = 1):
         
         # load configs of pretrained models
         self.ROOT_DIR = "."
@@ -139,6 +140,10 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         self.state = np.concatenate((self.state_of_collect_task_one, self.state_of_collect_task_two), axis=0).flatten()
         
         self.current_task = 0
+        if isinstance(consecutive_frames, int) and consecutive_frames > 0:
+            self.consecutive_frames = consecutive_frames
+        else:
+            self.consecutive_frames = 1
         
         # for rendering
         # FIXME: However, Agg does not open any display window.
@@ -154,6 +159,30 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         self.im = self.ax.imshow(eximg)
     
     def step(self, action: int):
+        # do at least one step
+        last_state, reward_over_consecutive_frames, done, truncated, info_over_consecutive_frames = self.actual_step(
+            action)
+        action_of_current_task_agent_list = [info_over_consecutive_frames["action_of_current_task_agent"]]
+        
+        for i in range(self.consecutive_frames - 1):
+            # step the environment
+            last_state, reward, done, truncated, info = self.actual_step(action)
+            reward_over_consecutive_frames += reward
+            info_over_consecutive_frames["collect_task_one_collected_objects"] += info[
+                "collect_task_one_collected_objects"]
+            info_over_consecutive_frames["collect_task_two_collected_objects"] += info[
+                "collect_task_two_collected_objects"]
+            info_over_consecutive_frames["collect_task_one_reward"] += info["collect_task_one_reward"]
+            info_over_consecutive_frames["collect_task_two_reward"] += info["collect_task_two_reward"]
+            action_of_current_task_agent_list.append(info["action_of_current_task_agent"])
+            if done:
+                break
+        
+        info_over_consecutive_frames["action_of_current_task_agent"] = action_of_current_task_agent_list
+        
+        return last_state, reward_over_consecutive_frames, done, truncated, info_over_consecutive_frames
+    
+    def actual_step(self, action: int):
         """
         action: selects the task
                 0: first collect task

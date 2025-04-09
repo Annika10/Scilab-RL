@@ -2,7 +2,8 @@ import gymnasium as gym
 import numpy as np
 import torch
 from src.custom_envs.moonlander.meta_env_pretrained_without_soc import MetaEnvPretrainedWithoutSoC
-from src.custom_algorithms.ppo_moonlander.utils import calculate_prediction_error, calculate_need_for_control
+from src.custom_algorithms.ppo_moonlander.utils import calculate_prediction_error, calculate_need_for_control, \
+    normalize_gaussian_with_distance_reward
 from src.custom_envs.moonlander.utils import get_next_position_observation_moonlander
 
 
@@ -123,8 +124,10 @@ class SoCWrapperEnv(gym.Env):
             case _:
                 raise ValueError(f"Invalid action {action}")
         
-        self.reward_collect_task_one = info["collect_task_one_reward"]
-        self.reward_collect_task_two = info["collect_task_two_reward"]
+        self.reward_collect_task_one = normalize_gaussian_with_distance_reward(task="collect", absolute_reward=info[
+            "collect_task_one_reward"])
+        self.reward_collect_task_two = normalize_gaussian_with_distance_reward(task="collect", absolute_reward=info[
+            "collect_task_two_reward"])
         
         self.state = np.array([self.SoC_collect_task_one, self.reward_collect_task_one, self.SoC_collect_task_two,
                                self.reward_collect_task_two])
