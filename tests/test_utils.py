@@ -4,6 +4,7 @@ import torch
 import gymnasium as gym
 import numpy as np
 import copy
+import math
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.logger import configure
 from src.custom_algorithms.cleanppofm.utils import (get_summed_up_reward_of_env_with_predicted_states_hardcoded, \
@@ -952,11 +953,27 @@ class TestUtils(unittest.TestCase):
                 position_predicting=True,
                 prediction_error=0,
                 maximum_number_of_objects=10,
-                last_observation_state=torch.tensor([matrix.flatten()])
+                last_observation_state=torch.tensor([matrix.flatten()]),
+                weighting=True
             )
             self.assertEqual(need_for_control, 0)
             self.assertEqual(summed_up_reward_default, (
-                    0.5 + 0.5 + 0.5 + 0.5 + 0.5 + 0.5 + 0.5 + 0.5 + 0.5 + 0.5 + 0.5 + 0.5 + 0.5 + 0.5 + 0.5) / 15)
+                    0.5 * math.pow(0.9, 0) +
+                    0.5 * math.pow(0.9, 1) +
+                    0.5 * math.pow(0.9, 2) +
+                    0.5 * math.pow(0.9, 3) +
+                    0.5 * math.pow(0.9, 4) +
+                    0.5 * math.pow(0.9, 5) +
+                    0.5 * math.pow(0.9, 6) +
+                    0.5 * math.pow(0.9, 7) +
+                    0.5 * math.pow(0.9, 8) +
+                    0.5 * math.pow(0.9, 9) +
+                    0.5 * math.pow(0.9, 10) +
+                    0.5 * math.pow(0.9, 11) +
+                    0.5 * math.pow(0.9, 12) +
+                    0.5 * math.pow(0.9, 13) +
+                    0.5 * math.pow(0.9, 14)) / 15)
+            self.assertEqual(summed_up_reward_default, summed_up_reward_optimal)
         
         with self.subTest("difference in rewards"):
             matrix_copy_0[3:6, 3:6] = 3

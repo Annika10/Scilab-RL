@@ -189,7 +189,8 @@ def calculate_prediction_error_with_forward_model(env_name, next_obs_positions,
 def calculate_need_for_control_with_forward_model(env, policy, fm_network, logger, position_predicting: bool,
                                                   prediction_error: float,
                                                   maximum_number_of_objects: int = 5,
-                                                  last_observation_state: np.array = None) -> tuple[
+                                                  last_observation_state: np.array = None,
+                                                  weighting: bool = False) -> tuple[
     float, float, float]:
     """
     Calculate the need for control of the environment by simulating the default trajectory
@@ -286,23 +287,19 @@ def calculate_need_for_control_with_forward_model(env, policy, fm_network, logge
         summed_up_reward_optimal_weighted += normalized_reward_optimal * math.pow(gamma, i)
     
     # get a mean reward between 0 and 1
-    summed_up_reward_default_normalized = summed_up_reward_default / (max(round(trajectory_length), 1))
-    summed_up_reward_optimal_normalized = summed_up_reward_optimal / (max(round(trajectory_length), 1))
-    summed_up_reward_default_weighted_normalized = summed_up_reward_default_weighted / (
-        max(round(trajectory_length), 1))
-    summed_up_reward_optimal_weighted_normalized = summed_up_reward_optimal_weighted / (
-        max(round(trajectory_length), 1))
+    if weighting:
+        summed_up_reward_default_normalized = summed_up_reward_default_weighted / (max(round(trajectory_length), 1))
+        summed_up_reward_optimal_normalized = summed_up_reward_optimal_weighted / (max(round(trajectory_length), 1))
+    else:
+        summed_up_reward_default_normalized = summed_up_reward_default / (max(round(trajectory_length), 1))
+        summed_up_reward_optimal_normalized = summed_up_reward_optimal / (max(round(trajectory_length), 1))
     
     # distance between the two trajectories
     need_for_control = (max(summed_up_reward_default_normalized, summed_up_reward_optimal_normalized)) - (
         min(summed_up_reward_default_normalized, summed_up_reward_optimal_normalized))
-    need_for_control_weighted = (max(summed_up_reward_default_weighted_normalized,
-                                     summed_up_reward_optimal_weighted_normalized)) - (
-                                    min(summed_up_reward_default_weighted_normalized,
-                                        summed_up_reward_optimal_weighted_normalized))
     
     # need for control is high if the rewards are quite different
-    return need_for_control_weighted, summed_up_reward_default_weighted_normalized, summed_up_reward_optimal_weighted_normalized
+    return need_for_control, summed_up_reward_default_normalized, summed_up_reward_optimal_normalized
 
 
 def normalize_rewards(task: str, absolute_reward) -> float:
