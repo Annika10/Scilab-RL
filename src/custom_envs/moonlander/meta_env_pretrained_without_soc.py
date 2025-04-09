@@ -222,7 +222,6 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         
         self.state = np.concatenate((self.state_of_collect_task_one, self.state_of_collect_task_two), axis=0).flatten()
         
-        # TODO: define a reward function (actual inactive reward is not directly know, only after switching tasks)
         return self.state, (active_reward + actual_inactive_reward).item(), (
                 active_is_done or inactive_is_done).item(), False, {
             "collect_task_one_collected_objects": collect_task_one_info[0]["number_of_crashed_or_collected_objects"],
