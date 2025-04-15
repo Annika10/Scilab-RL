@@ -2,7 +2,6 @@ import unittest
 from unittest import mock
 import gymnasium as gym
 import numpy as np
-import torch
 from src.custom_envs.register_envs import register_custom_envs
 
 
@@ -13,9 +12,8 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
         # with input noise, to get different belief to actual state
         # mock input noise
         input_noise_mock.side_effect = [1, 2, -1, -2, 0, -3, 3, 1]
-        # mock task action -> this also mocks it in the need for control calculation,
-        #  therefore we need it many times
-        ppo_moonlander_predict_mock.side_effect = ([(np.array([2]), None)] * 30000)
+        # we do 8 steps
+        ppo_moonlander_predict_mock.side_effect = ([(np.array([2]), None)] * 8)
         
         # register custom envs
         register_custom_envs()
@@ -229,9 +227,8 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
     
     @mock.patch("src.custom_algorithms.ppo_moonlander.ppo_moonlander.PPO_MOONLANDER.predict")
     def test_consecutive_frames(self, ppo_moonlander_predict_mock) -> None:
-        # mock task action -> this also mocks it in the need for control calculation,
-        #  therefore we need it many times
-        ppo_moonlander_predict_mock.side_effect = ([(np.array([2]), None)] * 30000)
+        # internally we do 5 predictions
+        ppo_moonlander_predict_mock.side_effect = ([(np.array([2]), None)] * 5)
         
         # register custom envs
         register_custom_envs()

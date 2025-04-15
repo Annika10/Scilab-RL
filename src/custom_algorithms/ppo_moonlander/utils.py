@@ -43,40 +43,29 @@ def calculate_prediction_error(next_obs_positions, predicted_next_obs_positions,
     return prediction_error
 
 
-def calculate_need_for_control(last_observation_positions: torch.Tensor, policy, prediction_error: float,
-                               observation_height: int, observation_width: int, agent_size: int, task: str,
-                               object_dict_list: list[dict], maximum_number_of_objects: int = 10) -> tuple[
-    float, float, float]:
+def calculate_need_for_control(last_observation_positions: torch.Tensor, policy, observation_height: int,
+                               observation_width: int, agent_size: int, task: str, object_dict_list: list[dict],
+                               weighted: bool = True) -> tuple[float, float, float]:
     """
     Calculate the need for control of the environment by simulating the default trajectory
     and the "optimal" trajectory the agent would choose.
     Args:
         last_observation_positions: last observation positions
         policy: agent policy to predict actions
-        prediction_error: error between predicted and last actual observation
         observation_height: height of the observation
         observation_width: width of the observation
         agent_size: size of the agent in the observation
         task: task of the environment, either "dodge" or "collect"
         object_dict_list: list of objects in the environment
-        maximum_number_of_objects: the number of objects that are considered in the forward model prediction
+        weighted: if each predicted state is weighted fewer
     Returns:
         need for control between 0 and 1
-        summed up rewards when executing the default action (trajectory length is calculated by prediction error)
+        summed up rewards when executing the default action
+        summed up rewards when executing the optimal action
     """
     
-    if task == "dodge":
-        task_type = "obstacle"
-    elif task == "collect":
-        task_type = "coin"
-    else:
+    if not task == "collect":
         raise ValueError(f"The current task {task} is not supported.")
-    
-    # calculate the trajectory lengths through the prediction error
-    # we decide that the trajectory length is half the observation size of the environment
-    # when the prediction error is 0
-    trajectory_length = calculate_trajectory_length(observation_height=observation_height,
-                                                    prediction_error=prediction_error)
     
     last_observation_positions_default = last_observation_positions
     last_observation_positions_optimal = copy.deepcopy(last_observation_positions_default)
@@ -84,33 +73,32 @@ def calculate_need_for_control(last_observation_positions: torch.Tensor, policy,
     ##### CALCULATE REWARDS THROUGH ENVIRONMENT #####
     summed_up_reward_default = 0
     summed_up_reward_optimal = 0
-    summed_up_reward_default_weighted = 0
-    summed_up_reward_optimal_weighted = 0
     gamma = 0.9
     
     # simulate at least one step
-    for i in range(max(round(trajectory_length), 1)):
+    for i in range(max(observation_height, 1)):
         ##### DEFAULT ACTION #####
         # get next state
         last_observation_state_default, last_observation_positions_default = get_next_observation_as_state_and_positions(
             last_observation_positions=last_observation_positions_default,
             action=torch.tensor([1]),
-            maximum_number_of_objects=maximum_number_of_objects,
             observation_width=observation_width,
             observation_height=observation_height,
             agent_size=agent_size,
             task=task)
-        normalized_reward_default = get_next_normalized_reward(
-            last_observation_state=last_observation_state_default,
-            last_observation_positions=last_observation_positions_default,
+        reward_default = get_next_reward(
+            new_observation_state=last_observation_state_default,
+            new_observation_positions=last_observation_positions_default,
             action=torch.tensor([1]),
             observation_width=observation_width,
             observation_height=observation_height,
             agent_size=agent_size,
             task=task,
             object_dict_list=object_dict_list)
-        summed_up_reward_default += normalized_reward_default
-        summed_up_reward_default_weighted += normalized_reward_default * math.pow(gamma, i)
+        if not weighted:
+            summed_up_reward_default += reward_default
+        else:
+            summed_up_reward_default += reward_default * math.pow(gamma, i)
         
         ##### OPTIMAL ACTION #####
         # get optimal action of agent
@@ -119,41 +107,34 @@ def calculate_need_for_control(last_observation_positions: torch.Tensor, policy,
         last_observation_state_optimal, last_observation_positions_optimal = get_next_observation_as_state_and_positions(
             last_observation_positions=last_observation_positions_optimal,
             action=torch.tensor(action_of_task_agent),
-            maximum_number_of_objects=maximum_number_of_objects,
             observation_width=observation_width,
             observation_height=observation_height,
             agent_size=agent_size,
             task=task)
-        normalized_reward_optimal = get_next_normalized_reward(
-            last_observation_state=last_observation_state_optimal,
-            last_observation_positions=last_observation_positions_optimal,
+        reward_optimal = get_next_reward(
+            new_observation_state=last_observation_state_optimal,
+            new_observation_positions=last_observation_positions_optimal,
             action=torch.tensor(action_of_task_agent),
             observation_width=observation_width,
             observation_height=observation_height,
             agent_size=agent_size,
             task=task,
             object_dict_list=object_dict_list)
-        summed_up_reward_optimal += normalized_reward_optimal
-        summed_up_reward_optimal_weighted += normalized_reward_optimal * math.pow(gamma, i)
-    
-    # get a mean reward between 0 and 1
-    summed_up_reward_default_normalized = summed_up_reward_default / (max(round(trajectory_length), 1))
-    summed_up_reward_optimal_normalized = summed_up_reward_optimal / (max(round(trajectory_length), 1))
-    summed_up_reward_default_weighted_normalized = summed_up_reward_default_weighted / (
-        max(round(trajectory_length), 1))
-    summed_up_reward_optimal_weighted_normalized = summed_up_reward_optimal_weighted / (
-        max(round(trajectory_length), 1))
+        if not weighted:
+            summed_up_reward_optimal += reward_optimal
+        else:
+            summed_up_reward_optimal += reward_optimal * math.pow(gamma, i)
     
     # distance between the two trajectories
-    need_for_control = (max(summed_up_reward_default_normalized, summed_up_reward_optimal_normalized)) - (
-        min(summed_up_reward_default_normalized, summed_up_reward_optimal_normalized))
-    need_for_control_weighted = (max(summed_up_reward_default_weighted_normalized,
-                                     summed_up_reward_optimal_weighted_normalized)) - (
-                                    min(summed_up_reward_default_weighted_normalized,
-                                        summed_up_reward_optimal_weighted_normalized))
+    # this can happen because of small left or right movements
+    if summed_up_reward_optimal < summed_up_reward_default:
+        need_for_control = 0
+    else:
+        difference = summed_up_reward_optimal - summed_up_reward_default
+        need_for_control = min(max(difference / 100, 0), 1)
     
     # need for control is high if the rewards are quite different
-    return need_for_control_weighted, summed_up_reward_default_weighted_normalized, summed_up_reward_optimal_weighted_normalized
+    return need_for_control, summed_up_reward_default, summed_up_reward_optimal
 
 
 def normalize_gaussian_with_distance_reward(task: str, absolute_reward) -> float:
@@ -182,26 +163,9 @@ def calculate_trajectory_length(observation_height: int, prediction_error: float
     return - (observation_height / 2) * prediction_error + observation_height / 2
 
 
-def get_next_observation_as_state_and_positions(action: torch.Tensor, maximum_number_of_objects: int,
+def get_next_observation_as_state_and_positions(last_observation_positions: torch.tensor, action: torch.Tensor,
                                                 observation_width: int, observation_height: int, agent_size: int,
-                                                task: str, last_observation_state: torch.Tensor = None,
-                                                last_observation_positions: torch.tensor = None) -> tuple[
-    torch.tensor, torch.tensor]:
-    if last_observation_state is not None:
-        if not last_observation_state.shape[1] == (observation_width + 2) * observation_height:
-            raise ValueError(
-                f"The given observation width {observation_width} and height {observation_height} "
-                f"do not match the observation shape: {last_observation_state.shape}."
-                f"The second observation shape element {last_observation_state.shape[1]} should be "
-                f"(observation_width + 2) * observation_height = {(observation_width + 2) * observation_height}.")
-        
-        # get positions of last observation
-        last_observation_positions = get_position_and_object_positions_of_observation(
-            torch.tensor(last_observation_state, device=device), maximum_number_of_objects=maximum_number_of_objects,
-            observation_width=observation_width, observation_height=observation_height, agent_size=agent_size)
-    elif last_observation_state is None and last_observation_positions is None:
-        raise ValueError("Either last_observation_state or last_observation_positions should be given.")
-    
+                                                task: str) -> tuple[torch.tensor, torch.tensor]:
     # remove already overlapping objects
     if task == "collect":
         collected_objects_of_last_state = get_collected_objects(observation_positions=last_observation_positions,
@@ -236,10 +200,9 @@ def get_next_observation_as_state_and_positions(action: torch.Tensor, maximum_nu
     return new_observation_state, new_observation_positions
 
 
-def get_next_normalized_reward(last_observation_state: torch.Tensor, last_observation_positions: torch.tensor,
-                               action: torch.Tensor, observation_width: int, observation_height: int, agent_size: int,
-                               task: str,
-                               object_dict_list: list[dict]) -> float:
+def get_next_reward(new_observation_state: torch.Tensor, new_observation_positions: torch.tensor,
+                    action: torch.Tensor, observation_width: int, observation_height: int, agent_size: int,
+                    task: str, object_dict_list: list[dict]) -> float:
     if task == "collect":
         task_type = "coin"
     else:
@@ -247,14 +210,14 @@ def get_next_normalized_reward(last_observation_state: torch.Tensor, last_observ
     
     # get collected objects to calculate reward
     x_position_of_agent = int(
-        min(max(agent_size, last_observation_positions[0][0]), observation_width - agent_size + 1))
-    y_position_of_agent = int(last_observation_positions[0][1])
-    collected_objects = get_collected_objects(observation_positions=last_observation_positions, agent_size=agent_size,
+        min(max(agent_size, new_observation_positions[0][0]), observation_width - agent_size + 1))
+    y_position_of_agent = int(new_observation_positions[0][1])
+    collected_objects = get_collected_objects(observation_positions=new_observation_positions, agent_size=agent_size,
                                               observation_width=observation_width)
     
     # calculate reward
     rewards_gaussian, _ = calculate_gaussian_reward(
-        state=last_observation_state.reshape(observation_height, observation_width + 2),
+        state=new_observation_state.reshape(observation_height, observation_width + 2),
         collected_objects=collected_objects,
         agent_size=agent_size,
         task_type=task_type,
@@ -267,8 +230,4 @@ def get_next_normalized_reward(last_observation_state: torch.Tensor, last_observ
                                                                    action=action.item(),
                                                                    reward_gaussian=rewards_gaussian,
                                                                    object_dict_list=object_dict_list)
-    
-    # FIXME: normalize reward???
-    normalized_reward = normalize_gaussian_with_distance_reward(task=task, absolute_reward=reward_with_distance)
-    
-    return normalized_reward
+    return reward_with_distance

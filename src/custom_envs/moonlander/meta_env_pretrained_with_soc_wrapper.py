@@ -78,10 +78,12 @@ class SoCWrapperEnv(gym.Env):
                 raise ValueError(f"Invalid action {action}")
         
         # calculate next belief state
-        active_next_belief_state = get_next_position_observation_moonlander(
-            observations=torch.from_numpy(active_last_state),
-            actions=torch.from_numpy(info["action_of_current_task_agent"]),
-            observation_width=self.env.observation_width, agent_size=self.env.agent_size)
+        active_next_belief_state = torch.from_numpy(active_last_state)
+        for action_of_current_task_agent in info["action_of_current_task_agent"]:
+            active_next_belief_state = get_next_position_observation_moonlander(
+                observations=active_next_belief_state,
+                actions=torch.from_numpy(action_of_current_task_agent),
+                observation_width=self.env.observation_width, agent_size=self.env.agent_size)
         
         # FIXME: change prediction error to be higher if the agent x position is wrong? --> tanh
         prediction_error = calculate_prediction_error(next_obs_positions=np.expand_dims(active_new_state, axis=0),
@@ -94,13 +96,12 @@ class SoCWrapperEnv(gym.Env):
         need_for_control, _, _ = calculate_need_for_control(
             last_observation_positions=torch.from_numpy(active_last_state),
             policy=active_model,
-            prediction_error=prediction_error,
             observation_height=self.env.observation_height,
             observation_width=self.env.observation_width,
             agent_size=self.env.agent_size,
             task="collect",
             object_dict_list=current_object_dict_list,
-            maximum_number_of_objects=self.env.maximum_number_of_objects)
+            weighted=True)
         # prediction error is high, if the prediction and actual observation do not match
         # need for control is high if the rewards of the optimal trajectory are quite different to the rewards of the default trajectory
         # soc = mean of prediction error and need_for_control

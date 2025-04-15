@@ -18,7 +18,11 @@ from src.custom_envs.moonlander.utils import (get_position_and_object_positions_
                                               get_next_position_observation_moonlander,
                                               get_collected_objects)
 from src.custom_envs.register_envs import register_custom_envs
-from src.custom_algorithms.ppo_moonlander.utils import calculate_prediction_error
+from src.custom_algorithms.ppo_moonlander.utils import (calculate_prediction_error,
+                                                        calculate_need_for_control,
+                                                        get_next_observation_as_state_and_positions,
+                                                        normalize_gaussian_with_distance_reward,
+                                                        get_next_reward)
 from src.custom_algorithms.cleanppofm.agent import Agent
 from src.custom_algorithms.cleanppofm.forward_model import ProbabilisticForwardNetPositionPredictionIncludingReward
 
@@ -875,7 +879,7 @@ class TestUtils(unittest.TestCase):
                               first_possible_x_position=0,
                               last_possible_x_position=0)
     
-    def test_calculate_need_for_control(self) -> None:
+    def test_calculate_need_for_control_with_forward_model(self) -> None:
         register_custom_envs()
         env = gym.make("MoonlanderWorld-dodge-gaussian-v0")
         dummy_vec_env = DummyVecEnv([lambda: env])
@@ -1030,6 +1034,188 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(need_for_control, 0)
             self.assertEqual(summed_up_reward_default, 0.5)
     
+    @mock.patch("src.custom_algorithms.ppo_moonlander.ppo_moonlander.PPO_MOONLANDER")
+    def test_calculate_need_for_control(self, ppo_moonlander_mock) -> None:
+        # internally we do 30 predictions per NfC calculation
+        ppo_moonlander_mock.predict.side_effect = (
+                [(np.array([1]), None)] * 30 + [(np.array([2]), None)] * 30 + [(np.array([2]), None)] * 30)
+        with self.subTest("empty observation -> NfC of 0"):
+            need_for_control, default_reward, optimal_reward = calculate_need_for_control(
+                last_observation_positions=torch.tensor(
+                    [[7., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]]),
+                policy=ppo_moonlander_mock,
+                observation_height=10,
+                observation_width=10,
+                agent_size=1,
+                task="collect",
+                object_dict_list=[],
+                weighted=True
+            )
+            self.assertEqual(need_for_control, 0)
+        with self.subTest("object at bottom, but far away on x Axis -> NfC of ~0.5"):
+            need_for_control, default_reward, optimal_reward = calculate_need_for_control(
+                last_observation_positions=torch.tensor(
+                    [[2., 1., 34., 18., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]]),
+                policy=ppo_moonlander_mock,
+                observation_height=30,
+                observation_width=40,
+                agent_size=2,
+                task="collect",
+                object_dict_list=[{"x": 34, "y": 18, "size": 2}],
+                weighted=False
+            )
+            self.assertEqual(round(need_for_control, ndigits=1), 0.5)
+        with self.subTest("object in middle and actions are needed -> NfC of 1"):
+            need_for_control, default_reward, optimal_reward = calculate_need_for_control(
+                last_observation_positions=torch.tensor(
+                    [[2., 1., 8., 4., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]]),
+                policy=ppo_moonlander_mock,
+                observation_height=30,
+                observation_width=40,
+                agent_size=2,
+                task="collect",
+                object_dict_list=[{"x": 8, "y": 4, "size": 2}],
+                weighted=False
+            )
+            self.assertEqual(need_for_control, 1)
+        with self.subTest("task not implemented"):
+            self.assertRaises(ValueError, calculate_need_for_control, last_observation_positions=None, policy=None,
+                              observation_height=10, observation_width=10, agent_size=1, task="dodge",
+                              object_dict_list=None)
+    
+    def test_get_next_observation_as_state_and_positions(self) -> None:
+        with self.subTest("collect an object that is then removed"):
+            last_observation_positions = torch.tensor([[6., 0., 7., 1., 3., 2.]])
+            assumed_new_state = np.array(
+                [[-1., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., -1.,
+                  -1., 0., 0., 2., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1., ]])
+            new_state, new_positions = get_next_observation_as_state_and_positions(
+                last_observation_positions=last_observation_positions,
+                action=torch.tensor([2]),
+                observation_height=10,
+                observation_width=10,
+                agent_size=1,
+                task="collect")
+            np.testing.assert_array_equal(new_state, assumed_new_state)
+            torch.equal(new_positions, torch.tensor([[7., 0., 0., 0., 3., 1.]]))
+        with self.subTest("task not implemented"):
+            self.assertRaises(NotImplementedError, get_next_observation_as_state_and_positions, action=None,
+                              observation_height=10, observation_width=10, agent_size=1,
+                              task="dodge", last_observation_positions=None)
+    
+    def test_get_normalized_reward(self) -> None:
+        with self.subTest("nothing -> absolute reward of zero"):
+            new_observation_state = np.array(
+                [[-1., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1., ]])
+            new_observation_positions = torch.tensor(
+                [[7., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
+            reward = get_next_reward(new_observation_state=new_observation_state,
+                                     new_observation_positions=new_observation_positions,
+                                     action=torch.tensor([1]),
+                                     observation_width=10,
+                                     observation_height=10,
+                                     agent_size=1,
+                                     task="collect",
+                                     object_dict_list=[])
+            self.assertEqual(reward, 0)
+        with self.subTest("collecting -> absolute reward of >400"):
+            new_observation_state = np.array(
+                [[-1., 0., 0., 0., 0., 0., 1., 1., 1., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 1., 1., 1., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 1., 1., 1., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1., ]])
+            new_observation_positions = torch.tensor(
+                [[7., 1., 7., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
+            reward = get_next_reward(new_observation_state=new_observation_state,
+                                     new_observation_positions=new_observation_positions,
+                                     action=torch.tensor([1]),
+                                     observation_width=10,
+                                     observation_height=10,
+                                     agent_size=2,
+                                     task="collect",
+                                     object_dict_list=[])
+            self.assertGreater(reward, 400)
+        
+        with self.subTest("large distance -> absolute reward of <-200"):
+            new_observation_state = np.array(
+                [[-1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -1.,
+                  -1., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., -1.,
+                  -1., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., -1.,
+                  -1., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., -1.,
+                  ]])
+            new_observation_positions = torch.tensor(
+                [[22., 1., 2., 8., 5., 8., 8., 8., 11., 8., 14., 8., 17., 8., 20., 8., 23., 8., 0., 0., 0., 0.]])
+            reward = get_next_reward(new_observation_state=new_observation_state,
+                                     new_observation_positions=new_observation_positions,
+                                     action=torch.tensor([1]),
+                                     observation_width=23,
+                                     observation_height=10,
+                                     agent_size=2,
+                                     task="collect",
+                                     object_dict_list=[{"x": 2, "y": 8, "size": 2},
+                                                       {"x": 5, "y": 8, "size": 2},
+                                                       {"x": 8, "y": 8, "size": 2},
+                                                       {"x": 11, "y": 8, "size": 2},
+                                                       {"x": 14, "y": 8, "size": 2},
+                                                       {"x": 17, "y": 8, "size": 2},
+                                                       {"x": 20, "y": 8, "size": 2},
+                                                       {"x": 23, "y": 8, "size": 2}])
+            self.assertLess(reward, -200)
+        
+        with self.subTest("task not implemented"):
+            self.assertRaises(ValueError, get_next_reward, new_observation_state=None,
+                              new_observation_positions=None, action=None, observation_width=10, observation_height=10,
+                              agent_size=1, task="dodge", object_dict_list=None)
+    
+    def test_normalize_gaussian_rewards(self) -> None:
+        with self.subTest("absolute reward < -200"):
+            normalized_reward = normalize_gaussian_with_distance_reward(task="collect", absolute_reward=-300)
+            self.assertEqual(normalized_reward, 0)
+        with self.subTest("absolute reward = -200"):
+            normalized_reward = normalize_gaussian_with_distance_reward(task="collect", absolute_reward=-200)
+            self.assertEqual(normalized_reward, 0)
+        with self.subTest("absolute reward = 100"):
+            normalized_reward = normalize_gaussian_with_distance_reward(task="collect", absolute_reward=100)
+            self.assertEqual(normalized_reward, 0.5)
+        with self.subTest("absolute reward = 400"):
+            normalized_reward = normalize_gaussian_with_distance_reward(task="collect", absolute_reward=400)
+            self.assertEqual(normalized_reward, 1)
+        with self.subTest("absolute reward > 400"):
+            normalized_reward = normalize_gaussian_with_distance_reward(task="collect", absolute_reward=500)
+            self.assertEqual(normalized_reward, 1)
+        with self.subTest("task not implemented"):
+            self.assertRaises(NotImplementedError, normalize_gaussian_with_distance_reward, task="dodge",
+                              absolute_reward=0)
+    
     def test_normalize_rewards(self) -> None:
         with self.subTest("dodge"):
             task = "dodge"
@@ -1137,7 +1323,7 @@ class TestUtils(unittest.TestCase):
             trajectory_length = calculate_trajectory_length(observation_height=observation_height, prediction_error=1)
             self.assertEqual(trajectory_length, 0)
     
-    def test_get_next_normalized_reward(self) -> None:
+    def test_get_next_state_and_normalized_reward(self) -> None:
         # build empty obs
         matrix = np.zeros(shape=(30, 40 + 2), dtype=np.int16)
         # add wall
@@ -1151,26 +1337,6 @@ class TestUtils(unittest.TestCase):
         matrix_copy_2 = copy.deepcopy(matrix)
         matrix_copy_3 = copy.deepcopy(matrix)
         matrix_copy_4 = copy.deepcopy(matrix)
-        
-        object_dict_list = []
-        # object_dict_list = [{'x': 33, 'y': 72, 'size': 2}, {'x': 17, 'y': 75, 'size': 2}, {'x': 12, 'y': 78, 'size': 2},
-        #                     {'x': 18, 'y': 82, 'size': 2}, {'x': 20, 'y': 90, 'size': 2}, {'x': 4, 'y': 97, 'size': 2},
-        #                     {'x': 38, 'y': 112, 'size': 2}, {'x': 30, 'y': 135, 'size': 2},
-        #                     {'x': 14, 'y': 169, 'size': 2},
-        #                     {'x': 18, 'y': 197, 'size': 2}, {'x': 35, 'y': 197, 'size': 2},
-        #                     {'x': 9, 'y': 206, 'size': 2},
-        #                     {'x': 26, 'y': 210, 'size': 2}, {'x': 22, 'y': 226, 'size': 2},
-        #                     {'x': 24, 'y': 242, 'size': 2},
-        #                     {'x': 2, 'y': 305, 'size': 2}, {'x': 14, 'y': 312, 'size': 2},
-        #                     {'x': 31, 'y': 319, 'size': 2},
-        #                     {'x': 28, 'y': 334, 'size': 2}, {'x': 34, 'y': 335, 'size': 2},
-        #                     {'x': 15, 'y': 358, 'size': 2},
-        #                     {'x': 27, 'y': 362, 'size': 2}, {'x': 28, 'y': 374, 'size': 2},
-        #                     {'x': 39, 'y': 375, 'size': 2},
-        #                     {'x': 20, 'y': 395, 'size': 2}, {'x': 10, 'y': 401, 'size': 2},
-        #                     {'x': 6, 'y': 406, 'size': 2},
-        #                     {'x': 22, 'y': 408, 'size': 2}, {'x': 5, 'y': 441, 'size': 2},
-        #                     {'x': 39, 'y': 450, 'size': 2}]
         
         matrix = torch.tensor(matrix.flatten()).unsqueeze(0)
         with self.subTest("empty observation"):
