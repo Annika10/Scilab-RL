@@ -1111,7 +1111,7 @@ class TestUtils(unittest.TestCase):
                               observation_height=10, observation_width=10, agent_size=1,
                               task="dodge", last_observation_positions=None)
     
-    def test_get_normalized_reward(self) -> None:
+    def test_get_next_reward(self) -> None:
         with self.subTest("nothing -> absolute reward of zero"):
             new_observation_state = np.array(
                 [[-1., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., -1.,
