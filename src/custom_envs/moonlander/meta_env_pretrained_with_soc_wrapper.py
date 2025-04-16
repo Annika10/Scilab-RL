@@ -2,9 +2,8 @@ import gymnasium as gym
 import numpy as np
 import torch
 from src.custom_envs.moonlander.meta_env_pretrained_without_soc import MetaEnvPretrainedWithoutSoC
-from src.custom_algorithms.ppo_moonlander.utils import calculate_prediction_error, calculate_need_for_control, \
-    normalize_gaussian_with_distance_reward
-from src.custom_envs.moonlander.utils import get_next_position_observation_moonlander
+from src.custom_algorithms.ppo_moonlander.utils import calculate_prediction_error, calculate_need_for_control
+from src.custom_envs.moonlander.utils import get_next_position_observation_moonlander, get_collected_objects
 
 
 class SoCWrapperEnv(gym.Env):
@@ -23,7 +22,7 @@ class SoCWrapperEnv(gym.Env):
         self.observation_space = gym.spaces.Box(
             low=0,
             high=1,
-            shape=(4,),
+            shape=(2,),
             dtype=np.float64,
         )
         
@@ -35,10 +34,7 @@ class SoCWrapperEnv(gym.Env):
         # set state
         self.SoC_collect_task_one = 1.0
         self.SoC_collect_task_two = 1.0
-        self.reward_collect_task_one = 0.0
-        self.reward_collect_task_two = 0.0
-        self.state = np.array([self.SoC_collect_task_one, self.reward_collect_task_one, self.SoC_collect_task_two,
-                               self.reward_collect_task_two])
+        self.state = np.array([self.SoC_collect_task_one, self.SoC_collect_task_two])
     
     def step(self, action):
         """
@@ -46,6 +42,19 @@ class SoCWrapperEnv(gym.Env):
                 0: first collect task
                 1: second collect task
         """
+        ### REWARD ###
+        # FIXME: reward is based on the last observation, not the new one
+        reward = 0
+        if self.SoC_collect_task_one > self.SoC_collect_task_two:
+            if action == 0:
+                reward = -1
+            else:
+                reward = 1
+        elif self.SoC_collect_task_one < self.SoC_collect_task_two:
+            if action == 1:
+                reward = -1
+            else:
+                reward = 1
         
         match action:
             
@@ -55,14 +64,12 @@ class SoCWrapperEnv(gym.Env):
                 active_last_state = self.env.state_of_collect_task_one
                 inactive_SoC = self.SoC_collect_task_two
                 current_object_dict_list = self.object_dict_list_task_one
-                self.current_task = 0
             case 1:
                 # collect task two
                 active_model = self.env.trained_collect_task_two
                 active_last_state = self.env.state_of_collect_task_two
                 inactive_SoC = self.SoC_collect_task_one
                 current_object_dict_list = self.object_dict_list_task_two
-                self.current_task = 1
             case _:
                 raise ValueError(f"Invalid action {action}")
         
@@ -80,19 +87,28 @@ class SoCWrapperEnv(gym.Env):
         # calculate next belief state
         active_next_belief_state = torch.from_numpy(active_last_state)
         for action_of_current_task_agent in info["action_of_current_task_agent"]:
+            # remove already overlapping objects
+            collected_objects_of_last_state = get_collected_objects(observation_positions=active_next_belief_state,
+                                                                    agent_size=self.env.agent_size,
+                                                                    observation_width=self.env.observation_width)
+            for index in range(2, len(active_next_belief_state[0]), 2):
+                x_position = int(active_next_belief_state[0][index])
+                y_position = int(active_next_belief_state[0][index + 1])
+                for collected_object in collected_objects_of_last_state:
+                    if x_position == collected_object['x'] and y_position == collected_object['y']:
+                        active_next_belief_state[0][index] = 0
+                        active_next_belief_state[0][index + 1] = 0
             active_next_belief_state = get_next_position_observation_moonlander(
                 observations=active_next_belief_state,
                 actions=torch.from_numpy(action_of_current_task_agent),
                 observation_width=self.env.observation_width, agent_size=self.env.agent_size)
         
-        # FIXME: change prediction error to be higher if the agent x position is wrong? --> tanh
         prediction_error = calculate_prediction_error(next_obs_positions=np.expand_dims(active_new_state, axis=0),
                                                       predicted_next_obs_positions=active_next_belief_state,
                                                       first_possible_x_position=self.env.agent_size,
                                                       last_possible_x_position=self.env.observation_width - self.env.agent_size + 1,
-                                                      linear_or_tanh="linear")
+                                                      linear_or_tanh="tanh")
         
-        # what is about reward normalization after changing the reward function?
         need_for_control, _, _ = calculate_need_for_control(
             last_observation_positions=torch.from_numpy(active_last_state),
             policy=active_model,
@@ -105,7 +121,6 @@ class SoCWrapperEnv(gym.Env):
         # prediction error is high, if the prediction and actual observation do not match
         # need for control is high if the rewards of the optimal trajectory are quite different to the rewards of the default trajectory
         # soc = mean of prediction error and need_for_control
-        # FIXME: SoC only NfC because PE is incorporated in the NfC?
         active_SoC = 1 - ((prediction_error + need_for_control) / 2)
         
         # SoC update --> degrade SoC by factor of observation height, so that after half of the steps of the observation
@@ -125,26 +140,10 @@ class SoCWrapperEnv(gym.Env):
             case _:
                 raise ValueError(f"Invalid action {action}")
         
-        self.reward_collect_task_one = normalize_gaussian_with_distance_reward(task="collect", absolute_reward=info[
-            "collect_task_one_reward"])
-        self.reward_collect_task_two = normalize_gaussian_with_distance_reward(task="collect", absolute_reward=info[
-            "collect_task_two_reward"])
+        info["prediction_error"] = prediction_error
+        info["need_for_control"] = need_for_control
         
-        self.state = np.array([self.SoC_collect_task_one, self.reward_collect_task_one, self.SoC_collect_task_two,
-                               self.reward_collect_task_two])
-        
-        ### REWARD ###
-        reward = 0
-        if self.SoC_collect_task_one > self.SoC_collect_task_two:
-            if action == 0:
-                reward = -1
-            else:
-                reward = 1
-        elif self.SoC_collect_task_one < self.SoC_collect_task_two:
-            if action == 1:
-                reward = -1
-            else:
-                reward = 1
+        self.state = np.array([self.SoC_collect_task_one, self.SoC_collect_task_two])
         
         return self.state, reward, done, truncated, info
     
@@ -162,8 +161,5 @@ class SoCWrapperEnv(gym.Env):
         
         self.SoC_collect_task_one = 1.0
         self.SoC_collect_task_two = 1.0
-        self.reward_collect_task_one = 0.0
-        self.reward_collect_task_two = 0.0
-        self.state = np.array([self.SoC_collect_task_one, self.reward_collect_task_one, self.SoC_collect_task_two,
-                               self.reward_collect_task_two])
+        self.state = np.array([self.SoC_collect_task_one, self.SoC_collect_task_two])
         return self.state, info

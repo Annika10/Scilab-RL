@@ -3,8 +3,8 @@ import torch
 import math
 import copy
 
-from src.custom_envs.moonlander.utils import get_position_and_object_positions_of_observation, \
-    get_observation_of_position_and_object_positions, get_next_position_observation_moonlander, get_collected_objects
+from src.custom_envs.moonlander.utils import get_observation_of_position_and_object_positions, \
+    get_next_position_observation_moonlander, get_collected_objects
 from src.custom_envs.moonlander.helper_functions import calculate_gaussian_reward, \
     calculate_gaussian_with_distance_reward
 
