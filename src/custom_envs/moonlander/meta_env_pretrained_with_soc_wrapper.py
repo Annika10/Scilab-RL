@@ -147,8 +147,8 @@ class SoCWrapperEnv(gym.Env):
         
         return self.state, reward, done, truncated, info
     
-    def render(self, mode="human"):
-        self.env.render(mode=mode)
+    def render(self):
+        self.env.render()
     
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)

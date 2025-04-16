@@ -173,7 +173,9 @@ class MetaEnvPretrained(gym.Env):
                 self.trained_dodge_asteroids = CLEANPPOFM.load(path=file,
                                                                env=make_vec_env(
                                                                    f"MoonlanderWorld-dodge-gaussian-{dodge_task_difficulty}-{str_range}v0",
-                                                                   n_envs=1))
+                                                                   n_envs=1,
+                                                                   env_kwargs={
+                                                                       "config_file_name": config_path_dodge_asteroids}))
             else:
                 # FIXME: better naming in whole file + obs
                 # use gymnasium logger for yellow colored logging
@@ -182,7 +184,9 @@ class MetaEnvPretrained(gym.Env):
                 self.trained_dodge_asteroids = CLEANPPOFM.load(path=file,
                                                                env=make_vec_env(
                                                                    f"MoonlanderWorld-collect-gaussian-{dodge_task_difficulty}-{str_range}v0",
-                                                                   n_envs=1))
+                                                                   n_envs=1,
+                                                                   env_kwargs={
+                                                                       "config_file_name": config_path_collect_asteroids}))
             self.trained_dodge_asteroids.set_logger(logger=self.logger)
         with open(
                 os.path.join(os.path.dirname(os.path.realpath(__file__)),
