@@ -102,7 +102,7 @@ def calculate_need_for_control(last_observation_positions: torch.Tensor, policy,
         
         ##### OPTIMAL ACTION #####
         # get optimal action of agent
-        action_of_task_agent, _ = policy.predict(last_observation_positions_optimal, deterministic=True)
+        action_of_task_agent, _ = policy.predict(last_observation_positions_optimal.cpu(), deterministic=True)
         # get next state
         last_observation_state_optimal, last_observation_positions_optimal = get_next_observation_as_state_and_positions(
             last_observation_positions=last_observation_positions_optimal,
