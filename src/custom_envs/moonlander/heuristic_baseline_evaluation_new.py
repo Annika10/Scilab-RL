@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
 from src.utils.animation_util import LiveAnimationPlot
-from custom_envs import ROOT_DIR
+from src.custom_envs import ROOT_DIR
 
 from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCWrapperEnv
 
@@ -360,20 +360,31 @@ if __name__ == "__main__":
     percentage_pairs = [[0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
                         [0.35, 0.65], [0.4, 0.6], [0.45, 0.55], [0.5, 0.5], [0.55, 0.45], [0.6, 0.4], [0.65, 0.35],
                         [0.7, 0.3], [0.75, 0.25], [0.8, 0.2], [0.85, 0.15], [0.9, 0.1], [0.95, 0.05], [1, 0]]
-    meta_env_name = "MetaEnv-pretrained-without-SoC-v0"
-    render = False
-    
-    collect_task_one_best_model_name = "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model"
-    collect_task_two_best_model_name = "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model"
-    config_file_name_collect_task_one = "../../../tests/test_data/levels/eval_config_collect_easy.yaml"
-    config_file_name_collect_task_two = "../../../tests/test_data/levels/eval_config_collect_hard.yaml"
+    task_one_difficulty = "easy"
+    task_two_difficulty = "hard"
     filename_collect_task_one = filename_collect_easy_0
     filename_collect_task_two = filename_collect_hard_1
     
-    directory = ROOT_DIR / "logs"
+    render = False
+    n_eval_episodes = 1
     
-    n_eval_episodes = 100
     ####################
+    
+    meta_env_name = f"MetaEnv-pretrained-without-SoC-{task_one_difficulty}-{task_two_difficulty}-v0"
+    
+    if task_one_difficulty == "easy":
+        collect_task_one_best_model_name = "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model"
+    else:
+        collect_task_one_best_model_name = "collect_gaussian_with_distance_easy_positions_31_03_2025_best_model"
+    if task_two_difficulty == "easy":
+        collect_task_two_best_model_name = "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model"
+    else:
+        collect_task_two_best_model_name = "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model"
+    
+    config_file_name_collect_task_one = f"../../../tests/test_data/levels/eval_config_collect_{task_one_difficulty}.yaml"
+    config_file_name_collect_task_two = f"../../../tests/test_data/levels/eval_config_collect_{task_two_difficulty}.yaml"
+    
+    directory = ROOT_DIR / "logs"
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     register_custom_envs()
