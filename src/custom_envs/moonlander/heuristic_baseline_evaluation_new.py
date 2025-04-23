@@ -335,7 +335,6 @@ def calculate_action_sequence_for_switch_per_percentage(dodge_percentage: float,
 
 
 if __name__ == "__main__":
-    # TODO: test on same data for NfC and percentage
     filename_collect_easy_0 = "collect_easy_object_list_30_times_40_0.csv"
     filename_collect_hard_0 = "collect_hard_object_list_30_times_40_0.csv"
     filename_collect_easy_1 = "collect_easy_object_list_30_times_40_1.csv"
