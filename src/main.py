@@ -170,7 +170,7 @@ def create_callbacks(cfg, logger, eval_env):
                                                log_path=logger.get_dir(), best_model_save_path=logger.get_dir(),
                                                render=False,
                                                warn=False)
-    elif cfg['env'] == 'MetaEnv-pretrained-without-SoC-v0':
+    elif cfg['env'].startswith('MetaEnv-pretrained-without-SoC'):
         eval_callback = EvalCallbackMetaAgentNew(eval_env, n_eval_episodes=cfg.n_test_rollouts,
                                                  eval_freq=cfg.eval_after_n_steps,
                                                  log_path=logger.get_dir(), best_model_save_path=logger.get_dir(),
