@@ -366,7 +366,7 @@ if __name__ == "__main__":
     filename_collect_task_two = filename_collect_hard_1
     
     render = False
-    n_eval_episodes = 1
+    n_eval_episodes = 100
     
     ####################
     
