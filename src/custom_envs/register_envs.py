@@ -472,7 +472,25 @@ def register_custom_envs():
              #              kwargs={'dodge_best_model_name': "collect_easy_input_noise_15_11_rl_model_best",
              #                      'collect_best_model_name': "collect_hard_input_noise_15_11_rl_model_best"},
              max_episode_steps=500)
-    register(id="MetaEnv-pretrained-without-SoC-v0",
+    register(id="MetaEnv-pretrained-without-SoC-easy-easy-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_easy.yaml"},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-easy-hard-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml"},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-hard-hard-v0",
              entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
              kwargs={
                  'collect_task_one_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
