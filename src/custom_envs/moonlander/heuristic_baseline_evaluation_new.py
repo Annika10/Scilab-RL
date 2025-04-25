@@ -1,7 +1,6 @@
 import os
 import random
 import csv
-import ast
 import torch
 import math
 import gymnasium as gym
@@ -335,25 +334,6 @@ def calculate_action_sequence_for_switch_per_percentage(dodge_percentage: float,
 
 
 if __name__ == "__main__":
-    filename_collect_easy_0 = "collect_easy_object_list_30_times_40_0.csv"
-    filename_collect_hard_0 = "collect_hard_object_list_30_times_40_0.csv"
-    filename_collect_easy_1 = "collect_easy_object_list_30_times_40_1.csv"
-    filename_collect_hard_1 = "collect_hard_object_list_30_times_40_1.csv"
-    
-    list_of_filenames = [filename_collect_easy_0, filename_collect_hard_0, filename_collect_easy_1,
-                         filename_collect_hard_1]
-    dict_of_filename_to_object_dict_list = {}
-    for filename in list_of_filenames:
-        list_of_object_dict_lists = []
-        with open(ROOT_DIR / "moonlander" / filename, "r") as file:
-            lines = csv.reader(file)
-            for line in lines:
-                # first element is index
-                # second element is the object list
-                # form string to list of dictionaries
-                list_of_object_dict_lists.append(ast.literal_eval(line[1]))
-        dict_of_filename_to_object_dict_list[filename] = list_of_object_dict_lists
-    
     ### DEFINE BEFORE ###
     
     mode = "switch_per_percentage"  # "SoC_switching", "switch_per_percentage"
@@ -362,8 +342,8 @@ if __name__ == "__main__":
                         [0.7, 0.3], [0.75, 0.25], [0.8, 0.2], [0.85, 0.15], [0.9, 0.1], [0.95, 0.05], [1, 0]]
     task_one_difficulty = "easy"
     task_two_difficulty = "hard"
-    filename_collect_task_one = filename_collect_easy_0
-    filename_collect_task_two = filename_collect_hard_1
+    filename_collect_task_one = f"collect_{task_one_difficulty}_object_list_30_times_40_0.csv"
+    filename_collect_task_two = f"collect_{task_two_difficulty}_object_list_30_times_40_0.csv"
     
     render = False
     n_eval_episodes = 100
@@ -375,7 +355,7 @@ if __name__ == "__main__":
     if task_one_difficulty == "easy":
         collect_task_one_best_model_name = "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model"
     else:
-        collect_task_one_best_model_name = "collect_gaussian_with_distance_easy_positions_31_03_2025_best_model"
+        collect_task_one_best_model_name = "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model"
     if task_two_difficulty == "easy":
         collect_task_two_best_model_name = "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model"
     else:
@@ -395,10 +375,8 @@ if __name__ == "__main__":
                    collect_task_two_best_model_name=collect_task_two_best_model_name,
                    config_file_name_collect_task_one=config_file_name_collect_task_one,
                    config_file_name_collect_task_two=config_file_name_collect_task_two,
-                   list_of_object_dict_lists_collect_task_one=dict_of_filename_to_object_dict_list[
-                       filename_collect_task_one],
-                   list_of_object_dict_lists_collect_task_two=dict_of_filename_to_object_dict_list[
-                       filename_collect_task_two],
+                   list_of_object_dict_lists_collect_task_one_filename=filename_collect_task_one,
+                   list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two,
                    input_noise_in_subtasks_on=False, consecutive_frames=5)
     
     if mode == "SoC_switching":

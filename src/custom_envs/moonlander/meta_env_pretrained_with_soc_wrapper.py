@@ -110,7 +110,7 @@ class SoCWrapperEnv(gym.Env):
                                                       linear_or_tanh="tanh")
         
         need_for_control, _, _ = calculate_need_for_control(
-            last_observation_positions=torch.from_numpy(active_last_state),
+            last_observation_positions=torch.from_numpy(np.expand_dims(active_new_state, axis=0)),
             policy=active_model,
             observation_height=self.env.observation_height,
             observation_width=self.env.observation_width,

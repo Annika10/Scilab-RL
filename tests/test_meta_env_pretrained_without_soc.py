@@ -18,49 +18,14 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
         # register custom envs
         register_custom_envs()
         # define env
-        env = gym.make("MetaEnv-pretrained-without-SoC-v0", render_mode="human",
+        env = gym.make("MetaEnv-pretrained-without-SoC-hard-hard-v0", render_mode="human",
                        # standard path '/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/src/custom_envs/moonlander'
                        config_file_name_collect_task_one="../../../tests/test_data/levels/config_collect_task_one_hard.yaml",
                        config_file_name_collect_task_two="../../../tests/test_data/levels/config_collect_task_two_hard.yaml",
                        input_noise_in_subtasks_on=True,
-                       list_of_object_dict_lists_collect_task_one=[
-                           [{'x': 13, 'y': 3, 'size': 2}, {'x': 35, 'y': 6, 'size': 2},
-                            {'x': 28, 'y': 11, 'size': 2}, {'x': 20, 'y': 15, 'size': 2},
-                            {'x': 25, 'y': 22, 'size': 2}, {'x': 35, 'y': 24, 'size': 2},
-                            {'x': 39, 'y': 29, 'size': 2}, {'x': 26, 'y': 34, 'size': 2},
-                            {'x': 25, 'y': 40, 'size': 2}, {'x': 39, 'y': 45, 'size': 2}, ],
-                           # reset in this test
-                           [{'x': 13, 'y': 3, 'size': 2}, {'x': 35, 'y': 6, 'size': 2},
-                            {'x': 28, 'y': 11, 'size': 2}, {'x': 20, 'y': 15, 'size': 2},
-                            {'x': 25, 'y': 22, 'size': 2}, {'x': 35, 'y': 24, 'size': 2},
-                            {'x': 39, 'y': 29, 'size': 2}, {'x': 26, 'y': 34, 'size': 2},
-                            {'x': 25, 'y': 40, 'size': 2}, {'x': 39, 'y': 45, 'size': 2}, ],
-                           # reset in MetaEnvPretrainedWithoutSoC
-                           [{'x': 13, 'y': 3, 'size': 2}, {'x': 35, 'y': 6, 'size': 2},
-                            {'x': 28, 'y': 11, 'size': 2}, {'x': 20, 'y': 15, 'size': 2},
-                            {'x': 25, 'y': 22, 'size': 2}, {'x': 35, 'y': 24, 'size': 2},
-                            {'x': 39, 'y': 29, 'size': 2}, {'x': 26, 'y': 34, 'size': 2},
-                            {'x': 25, 'y': 40, 'size': 2}, {'x': 39, 'y': 45, 'size': 2}, ],
-                       ],
-                       list_of_object_dict_lists_collect_task_two=[
-                           [{'x': 30, 'y': 5, 'size': 2}, {'x': 27, 'y': 10, 'size': 2},
-                            {'x': 16, 'y': 16, 'size': 2}, {'x': 12, 'y': 21, 'size': 2},
-                            {'x': 24, 'y': 27, 'size': 2}, {'x': 7, 'y': 30, 'size': 2},
-                            {'x': 16, 'y': 35, 'size': 2}, {'x': 16, 'y': 38, 'size': 2},
-                            {'x': 17, 'y': 46, 'size': 2}, {'x': 17, 'y': 49, 'size': 2}, ],
-                           # reset in this test
-                           [{'x': 30, 'y': 5, 'size': 2}, {'x': 27, 'y': 10, 'size': 2},
-                            {'x': 16, 'y': 16, 'size': 2}, {'x': 12, 'y': 21, 'size': 2},
-                            {'x': 24, 'y': 27, 'size': 2}, {'x': 7, 'y': 30, 'size': 2},
-                            {'x': 16, 'y': 35, 'size': 2}, {'x': 16, 'y': 38, 'size': 2},
-                            {'x': 17, 'y': 46, 'size': 2}, {'x': 17, 'y': 49, 'size': 2}, ],
-                           # reset in MetaEnvPretrainedWithoutSoC
-                           [{'x': 30, 'y': 5, 'size': 2}, {'x': 27, 'y': 10, 'size': 2},
-                            {'x': 16, 'y': 16, 'size': 2}, {'x': 12, 'y': 21, 'size': 2},
-                            {'x': 24, 'y': 27, 'size': 2}, {'x': 7, 'y': 30, 'size': 2},
-                            {'x': 16, 'y': 33, 'size': 2}, {'x': 16, 'y': 38, 'size': 2},
-                            {'x': 17, 'y': 46, 'size': 2}, {'x': 17, 'y': 49, 'size': 2}, ]
-                       ])
+                       list_of_object_dict_lists_collect_task_one_filename="../../../tests/test_data/collect_0_different_situations_self_defined.csv",
+                       list_of_object_dict_lists_collect_task_two_filename="../../../tests/test_data/collect_1_self_defined.csv",
+                       )
         
         env.reset()
         with self.subTest("three steps action 0"):
@@ -129,7 +94,7 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
             # actual state
             # agent: x position: 25, go to the right --> 27 + input noise of -2 --> 25
             # all objects: y position -1 + new incoming objects
-            new_state_active = np.array([25, 1, 30, 0, 27, 5, 16, 11, 12, 16, 24, 22, 7, 25, 16, 28, 0, 0, 0, 0, 0, 0])
+            new_state_active = np.array([25, 1, 30, 0, 27, 5, 16, 11, 12, 16, 24, 22, 7, 25, 16, 30, 0, 0, 0, 0, 0, 0])
             # we cannot see the belief state of the active task
             # from 22 to 44 elements because of action 1
             np.testing.assert_array_equal(new_state_active, state[22:])
@@ -150,7 +115,7 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
             # actual state
             # agent: x position: 25, go to the right --> 27 + input noise of 0 --> 27
             # all objects: y position -1 + new incoming objects
-            new_state_active = np.array([27, 1, 30, -1, 27, 4, 16, 10, 12, 15, 24, 21, 7, 24, 16, 27, 0, 0, 0, 0, 0, 0])
+            new_state_active = np.array([27, 1, 30, -1, 27, 4, 16, 10, 12, 15, 24, 21, 7, 24, 16, 29, 0, 0, 0, 0, 0, 0])
             # we cannot see the belief state of the active task
             # from 22 to 44 elements because of action 1
             np.testing.assert_array_equal(new_state_active, state[22:])
@@ -170,7 +135,7 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
             # actual state
             # agent: x position: 27, go to the right --> 29 + input noise of -3 --> 26
             # all objects: y position -1 + new incoming objects
-            new_state_active = np.array([26, 1, 27, 3, 16, 9, 12, 14, 24, 20, 7, 23, 16, 26, 0, 0, 0, 0, 0, 0, 0, 0])
+            new_state_active = np.array([26, 1, 27, 3, 16, 9, 12, 14, 24, 20, 7, 23, 16, 28, 0, 0, 0, 0, 0, 0, 0, 0])
             # we cannot see the belief state of the active task
             # from 22 to 44 elements because of action 1
             np.testing.assert_array_equal(new_state_active, state[22:])
@@ -191,7 +156,7 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
             # agent: x position: 26, go to the right --> 28 + input noise of 3 --> 31
             # all objects: y position -1 + new incoming objects
             # 27, 3 was collected in the last step
-            new_state_active = np.array([31, 1, 16, 8, 12, 13, 24, 19, 7, 22, 16, 25, 16, 30, 0, 0, 0, 0, 0, 0, 0, 0])
+            new_state_active = np.array([31, 1, 16, 8, 12, 13, 24, 19, 7, 22, 16, 27, 16, 28, 0, 0, 0, 0, 0, 0, 0, 0])
             # we cannot see the belief state of the active task
             # from 22 to 44 elements because of action 1
             np.testing.assert_array_equal(new_state_active, state[22:])
@@ -220,7 +185,7 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
             ### inactive task belief state:
             # agent: x position: 31, go one step down --> 31 without input noise
             # all objects: y position -1, no new incoming objects
-            new_state_inactive = np.array([31, 1, 16, 7, 12, 12, 24, 18, 7, 21, 16, 24, 16, 29, 0, 0, 0, 0, 0, 0, 0, 0])
+            new_state_inactive = np.array([31, 1, 16, 7, 12, 12, 24, 18, 7, 21, 16, 26, 16, 27, 0, 0, 0, 0, 0, 0, 0, 0])
             # we cannot see the actual state of the inactive task
             # from 22 to 44 elements because of action 0
             np.testing.assert_array_equal(new_state_inactive, state[22:])
@@ -233,49 +198,14 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
         # register custom envs
         register_custom_envs()
         
-        env = gym.make("MetaEnv-pretrained-without-SoC-v0", render_mode="human",
+        env = gym.make("MetaEnv-pretrained-without-SoC-hard-hard-v0", render_mode="human",
                        # standard path '/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/src/custom_envs/moonlander'
                        config_file_name_collect_task_one="../../../tests/test_data/levels/config_collect_task_one_hard.yaml",
                        config_file_name_collect_task_two="../../../tests/test_data/levels/config_collect_task_two_hard.yaml",
                        input_noise_in_subtasks_on=False, consecutive_frames=5,
-                       list_of_object_dict_lists_collect_task_one=[
-                           [{'x': 17, 'y': 6, 'size': 2}, {'x': 23, 'y': 7, 'size': 2}, {'x': 35, 'y': 6, 'size': 2},
-                            {'x': 28, 'y': 11, 'size': 2}, {'x': 20, 'y': 15, 'size': 2},
-                            {'x': 25, 'y': 22, 'size': 2}, {'x': 35, 'y': 24, 'size': 2},
-                            {'x': 39, 'y': 29, 'size': 2}, {'x': 26, 'y': 34, 'size': 2},
-                            {'x': 25, 'y': 40, 'size': 2}, {'x': 39, 'y': 45, 'size': 2}, ],
-                           # reset in this test
-                           [{'x': 17, 'y': 6, 'size': 2}, {'x': 23, 'y': 7, 'size': 2}, {'x': 35, 'y': 6, 'size': 2},
-                            {'x': 28, 'y': 11, 'size': 2}, {'x': 20, 'y': 15, 'size': 2},
-                            {'x': 25, 'y': 22, 'size': 2}, {'x': 35, 'y': 24, 'size': 2},
-                            {'x': 39, 'y': 29, 'size': 2}, {'x': 26, 'y': 34, 'size': 2},
-                            {'x': 25, 'y': 40, 'size': 2}, {'x': 39, 'y': 45, 'size': 2}, ],
-                           # reset in MetaEnvPretrainedWithoutSoC
-                           [{'x': 17, 'y': 6, 'size': 2}, {'x': 23, 'y': 7, 'size': 2}, {'x': 35, 'y': 6, 'size': 2},
-                            {'x': 28, 'y': 11, 'size': 2}, {'x': 20, 'y': 15, 'size': 2},
-                            {'x': 25, 'y': 22, 'size': 2}, {'x': 35, 'y': 24, 'size': 2},
-                            {'x': 39, 'y': 29, 'size': 2}, {'x': 26, 'y': 34, 'size': 2},
-                            {'x': 25, 'y': 40, 'size': 2}, {'x': 39, 'y': 45, 'size': 2}, ],
-                       ],
-                       list_of_object_dict_lists_collect_task_two=[
-                           [{'x': 30, 'y': 5, 'size': 2}, {'x': 27, 'y': 10, 'size': 2},
-                            {'x': 16, 'y': 16, 'size': 2}, {'x': 12, 'y': 21, 'size': 2},
-                            {'x': 24, 'y': 27, 'size': 2}, {'x': 7, 'y': 30, 'size': 2},
-                            {'x': 16, 'y': 35, 'size': 2}, {'x': 16, 'y': 38, 'size': 2},
-                            {'x': 17, 'y': 46, 'size': 2}, {'x': 17, 'y': 49, 'size': 2}, ],
-                           # reset in this test
-                           [{'x': 30, 'y': 5, 'size': 2}, {'x': 27, 'y': 10, 'size': 2},
-                            {'x': 16, 'y': 16, 'size': 2}, {'x': 12, 'y': 21, 'size': 2},
-                            {'x': 24, 'y': 27, 'size': 2}, {'x': 7, 'y': 30, 'size': 2},
-                            {'x': 16, 'y': 35, 'size': 2}, {'x': 16, 'y': 38, 'size': 2},
-                            {'x': 17, 'y': 46, 'size': 2}, {'x': 17, 'y': 49, 'size': 2}, ],
-                           # reset in MetaEnvPretrainedWithoutSoC
-                           [{'x': 30, 'y': 5, 'size': 2}, {'x': 27, 'y': 10, 'size': 2},
-                            {'x': 16, 'y': 16, 'size': 2}, {'x': 12, 'y': 21, 'size': 2},
-                            {'x': 24, 'y': 27, 'size': 2}, {'x': 7, 'y': 30, 'size': 2},
-                            {'x': 16, 'y': 33, 'size': 2}, {'x': 16, 'y': 38, 'size': 2},
-                            {'x': 17, 'y': 46, 'size': 2}, {'x': 17, 'y': 49, 'size': 2}, ]
-                       ])
+                       list_of_object_dict_lists_collect_task_one_filename="../../../tests/test_data/collect_0_self_defined.csv",
+                       list_of_object_dict_lists_collect_task_two_filename="../../../tests/test_data/collect_1_self_defined.csv",
+                       )
         env.reset()
         with self.subTest("action 0 (internally 5 times)"):
             state, reward, is_done, _, info = env.step(0)

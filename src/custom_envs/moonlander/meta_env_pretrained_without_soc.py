@@ -1,5 +1,6 @@
 import os
-from typing import List, Dict
+import csv
+import ast
 import yaml
 import torch
 import numpy as np
@@ -9,6 +10,7 @@ from stable_baselines3.common.logger import configure
 from stable_baselines3.common.env_util import make_vec_env
 from matplotlib import pyplot as plt
 
+from src.custom_envs import ROOT_DIR
 from src.custom_algorithms.ppo_moonlander import PPO_MOONLANDER
 from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
 from src.custom_envs.moonlander.utils import get_observation_of_position_and_object_positions, \
@@ -27,13 +29,12 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
     def __init__(self,
                  collect_task_one_best_model_name: str, collect_task_two_best_model_name: str,
                  config_file_name_collect_task_one: str = None, config_file_name_collect_task_two: str = None,
-                 list_of_object_dict_lists_collect_task_one: List[Dict] = None,
-                 list_of_object_dict_lists_collect_task_two: List[Dict] = None,
+                 list_of_object_dict_lists_collect_task_one_filename: str = None,
+                 list_of_object_dict_lists_collect_task_two_filename: str = None,
                  render_mode=None, input_noise_in_subtasks_on: bool = False,
                  consecutive_frames: int = 1):
         
         # load configs of pretrained models
-        self.ROOT_DIR = "."
         if config_file_name_collect_task_one is None:
             config_path_collect_task_one = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                                         "standard_config_second_task.yaml")
@@ -54,6 +55,31 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         
         if not config_collect_task_one == config_collect_task_two:
             gymnasium_logger.warn("Configurations are not the same")
+        
+        # load object dict lists
+        list_of_object_dict_lists_collect_task_one = None
+        list_of_object_dict_lists_collect_task_two = None
+        
+        if list_of_object_dict_lists_collect_task_one_filename:
+            list_of_object_dict_lists_collect_task_one = []
+            with open(ROOT_DIR / "moonlander" / list_of_object_dict_lists_collect_task_one_filename,
+                      "r") as file:
+                lines = csv.reader(file)
+                for line in lines:
+                    # first element is index
+                    # second element is the object list
+                    # form string to list of dictionaries
+                    list_of_object_dict_lists_collect_task_one.append(ast.literal_eval(line[1]))
+        
+        if list_of_object_dict_lists_collect_task_two_filename:
+            list_of_object_dict_lists_collect_task_two = []
+            with open(ROOT_DIR / "moonlander" / list_of_object_dict_lists_collect_task_two_filename, "r") as file:
+                lines = csv.reader(file)
+                for line in lines:
+                    # first element is index
+                    # second element is the object list
+                    # form string to list of dictionaries
+                    list_of_object_dict_lists_collect_task_two.append(ast.literal_eval(line[1]))
         
         # define render mode
         assert render_mode is None or render_mode in self.metadata["render_modes"]
