@@ -55,47 +55,10 @@ render_metrics_train: [
   #'train/rollout_rewards_collect_mean',
 ]
 render_metrics_test: [
-  #  'train/rollout_rewards_step',
-  #  'train/rollout_rewards_mean',
-  #  'fm/fw_loss',
-  #  'train/predicted_reward',
-  #  'train/predicted_rewards_mean',
-  #  'train/reward_with_future_reward_estimation_corrective',
-  #  'train/reward_with_future_reward_estimation_corrective_mean',
-  #  'train/prediction_error',
-  #  'train/prediction_error_mean',
-  'eval/rollout_rewards_step',
-  #'eval/number_of_crashed_or_collected_objects',
-  #'eval/predicted_rewards',
-  #'eval/predicted_rewards_mean',
-  #  'eval/reward_with_future_reward_estimation_corrective',
-  #'eval/prediction_error',
-  #  'train/rollout_rewards_step',
-  #  'train/rollout_rewards_dodge_step',
-  #  'train/rollout_rewards_collect_step',
-  #'eval/mean_reward',
-
-  # meta env
-  "eval/action_meta",
-  #"eval/dodge_position_before",
-  # "eval/collect_position_before",
-  #"eval/dodge_action",
-  # "eval/collect_action",
-  #"eval/dodge_next_position",
-  # "eval/collect_next_position",
-  #"eval/predicted_dodge_next_position",
-  # "eval/predicted_collect_next_position",
-  # "eval/input_noise",
-  #  "eval/prediction_error_dodge",
-  #  "eval/prediction_error_collect",
-  "eval/need_for_control_dodge",
-  "eval/need_for_control_collect",
-  #  "eval/SoC_dodge",
-  #  "eval/SoC_collect",
-  #  "eval/reward_dodge",
-  #  "eval/reward_collect",
-  #  "eval/dodge_object_crashed",
-  #  "eval/collect_object_collected"
+  "eval/SoC_collect_task_one",
+  "eval/SoC_collect_task_two",
+  "eval/prediction_error",
+  "eval/need_for_control",
 ]
 render_frames_per_clip: 0 # Number of frames per clip when recording. If set to 0, one episode is recorded.
 
@@ -116,7 +79,7 @@ eval_after_n_steps: 2000
 n_epochs: 10000
 
 # The number of testing rollouts.
-n_test_rollouts: 10
+n_test_rollouts: 50
 
 # The n last epochs over which to average for determining early stopping condition.
 early_stop_last_n: 3

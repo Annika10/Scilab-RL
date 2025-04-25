@@ -343,7 +343,7 @@ if __name__ == "__main__":
     task_one_difficulty = "easy"
     task_two_difficulty = "hard"
     filename_collect_task_one = f"collect_{task_one_difficulty}_object_list_30_times_40_0.csv"
-    filename_collect_task_two = f"collect_{task_two_difficulty}_object_list_30_times_40_0.csv"
+    filename_collect_task_two = f"collect_{task_two_difficulty}_object_list_30_times_40_1.csv"
     
     render = False
     n_eval_episodes = 100
@@ -369,20 +369,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     register_custom_envs()
     
-    # Initialise the environment
-    env = gym.make(meta_env_name, render_mode="human",
-                   collect_task_one_best_model_name=collect_task_one_best_model_name,
-                   collect_task_two_best_model_name=collect_task_two_best_model_name,
-                   config_file_name_collect_task_one=config_file_name_collect_task_one,
-                   config_file_name_collect_task_two=config_file_name_collect_task_two,
-                   list_of_object_dict_lists_collect_task_one_filename=filename_collect_task_one,
-                   list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two,
-                   input_noise_in_subtasks_on=False, consecutive_frames=5)
-    
     if mode == "SoC_switching":
-        env = SoCWrapperEnv(env=env)
-        # FIXME: why does it disappear when applying the wrapper?
-        env.render_mode = "human"
         filepath_for_storage = directory / f"{collect_task_one_best_model_name}_{collect_task_two_best_model_name}_soc_switching.csv"
     else:
         filepath_for_storage = directory / f"{collect_task_one_best_model_name}_{collect_task_two_best_model_name}_percentage_pairs.csv"
@@ -406,6 +393,15 @@ if __name__ == "__main__":
     
     if mode == "switch_per_percentage":
         for percentage_pair in percentage_pairs:
+            # Initialise the environment
+            env = gym.make(meta_env_name, render_mode="human",
+                           collect_task_one_best_model_name=collect_task_one_best_model_name,
+                           collect_task_two_best_model_name=collect_task_two_best_model_name,
+                           config_file_name_collect_task_one=config_file_name_collect_task_one,
+                           config_file_name_collect_task_two=config_file_name_collect_task_two,
+                           list_of_object_dict_lists_collect_task_one_filename=filename_collect_task_one,
+                           list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two,
+                           input_noise_in_subtasks_on=False, consecutive_frames=5)
             print(
                 f"Currently evaluating collect task one percentage: {percentage_pair[0]}"
                 f" and collect task two percentage: {percentage_pair[1]}")
@@ -414,7 +410,8 @@ if __name__ == "__main__":
                 n_eval_episodes=n_eval_episodes)
             _, _ = evaluate_policy(
                 env=env,
-                n_eval_episodes=n_eval_episodes,
+                # I don't know why, but it is the same in the standard evaluate_policy used by the framework
+                n_eval_episodes=n_eval_episodes / 2,
                 deterministic=True,
                 render=render,
                 return_episode_rewards=False,
@@ -423,9 +420,23 @@ if __name__ == "__main__":
                 name_of_heuristic=str(percentage_pair))
     
     elif mode == "SoC_switching":
+        # Initialise the environment
+        env = gym.make(meta_env_name, render_mode="human",
+                       collect_task_one_best_model_name=collect_task_one_best_model_name,
+                       collect_task_two_best_model_name=collect_task_two_best_model_name,
+                       config_file_name_collect_task_one=config_file_name_collect_task_one,
+                       config_file_name_collect_task_two=config_file_name_collect_task_two,
+                       list_of_object_dict_lists_collect_task_one_filename=filename_collect_task_one,
+                       list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two,
+                       input_noise_in_subtasks_on=False, consecutive_frames=5)
+        env = SoCWrapperEnv(env=env)
+        # FIXME: why does it disappear when applying the wrapper?
+        env.render_mode = "human"
+        
         _, _ = evaluate_policy(
             env=env,
-            n_eval_episodes=n_eval_episodes,
+            # I don't know why, but it is the same in the standard evaluate_policy used by the framework
+            n_eval_episodes=n_eval_episodes / 2,
             deterministic=True,
             render=render,
             return_episode_rewards=False,
