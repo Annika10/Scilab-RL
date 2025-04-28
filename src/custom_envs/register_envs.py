@@ -478,7 +478,8 @@ def register_custom_envs():
                  'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
                  'collect_task_two_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
                  'config_file_name_collect_task_one': "config_collect_easy.yaml",
-                 'config_file_name_collect_task_two': "config_collect_easy.yaml"},
+                 'config_file_name_collect_task_two': "config_collect_easy.yaml",
+                 'consecutive_frames': 5},
              max_episode_steps=500
              )
     register(id="MetaEnv-pretrained-without-SoC-easy-hard-v0",
@@ -487,7 +488,8 @@ def register_custom_envs():
                  'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
                  'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
                  'config_file_name_collect_task_one': "config_collect_easy.yaml",
-                 'config_file_name_collect_task_two': "config_collect_hard.yaml"},
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml",
+                 'consecutive_frames': 5},
              max_episode_steps=500
              )
     register(id="MetaEnv-pretrained-without-SoC-hard-hard-v0",
@@ -496,7 +498,8 @@ def register_custom_envs():
                  'collect_task_one_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
                  'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
                  'config_file_name_collect_task_one': "config_collect_hard.yaml",
-                 'config_file_name_collect_task_two': "config_collect_hard.yaml"},
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml",
+                 'consecutive_frames': 5},
              max_episode_steps=500
              )
     

@@ -176,6 +176,9 @@ def evaluate_policy_meta_agent_new(
         reward_threshold: Optional[float] = None,
         return_episode_rewards: bool = False,
         warn: bool = True,
+        ### added by me
+        logger=None,
+        ###
 ) -> Union[tuple[float, float], tuple[list[float]]]:
     """
     Runs policy for ``n_eval_episodes`` episodes and returns average reward.
@@ -235,6 +238,9 @@ def evaluate_policy_meta_agent_new(
     ### added by me
     episode_number_of_collected_objects_task_one = []
     episode_number_of_collected_objects_task_two = []
+    episode_number_of_switches = []
+    episode_number_of_task_one_actions = []
+    episode_number_of_task_two_actions = []
     ###
     
     episode_counts = np.zeros(n_envs, dtype="int")
@@ -246,6 +252,11 @@ def evaluate_policy_meta_agent_new(
     ### added by me
     current_number_of_collected_objects_task_one = np.zeros(n_envs, dtype="int")
     current_number_of_collected_objects_task_two = np.zeros(n_envs, dtype="int")
+    current_number_of_switches = np.zeros(n_envs, dtype="int")
+    current_number_of_task_one_actions = np.zeros(n_envs, dtype="int")
+    current_number_of_task_two_actions = np.zeros(n_envs, dtype="int")
+    
+    last_action = np.array([0])
     ###
     observations = env.reset()
     states = None
@@ -263,6 +274,18 @@ def evaluate_policy_meta_agent_new(
         ### added by me
         current_number_of_collected_objects_task_one += infos[0]["collect_task_one_collected_objects"]
         current_number_of_collected_objects_task_two += infos[0]["collect_task_two_collected_objects"]
+        if not (last_action == actions).item():
+            current_number_of_switches += 1
+        last_action = actions
+        if actions == np.array([0]):
+            current_number_of_task_one_actions += 1
+        elif actions == np.array([1]):
+            current_number_of_task_two_actions += 1
+        
+        logger.record("eval/SoC_collect_task_one", new_observations[0][0])
+        logger.record("eval/SoC_collect_task_two", new_observations[0][1])
+        logger.record("eval/prediction_error", infos[0]["prediction_error"])
+        logger.record("eval/need_for_control", infos[0]["need_for_control"])
         ###
         for i in range(n_envs):
             if episode_counts[i] < episode_count_targets[i]:
@@ -296,6 +319,9 @@ def evaluate_policy_meta_agent_new(
                     ### added by me
                     episode_number_of_collected_objects_task_one.append(current_number_of_collected_objects_task_one[i])
                     episode_number_of_collected_objects_task_two.append(current_number_of_collected_objects_task_two[i])
+                    episode_number_of_switches.append(current_number_of_switches[i])
+                    episode_number_of_task_one_actions.append(current_number_of_task_one_actions[i])
+                    episode_number_of_task_two_actions.append(current_number_of_task_two_actions[i])
                     ###
                     
                     current_rewards[i] = 0
@@ -303,6 +329,9 @@ def evaluate_policy_meta_agent_new(
                     ### added by me
                     current_number_of_collected_objects_task_one[i] = 0
                     current_number_of_collected_objects_task_two[i] = 0
+                    current_number_of_switches[i] = 0
+                    current_number_of_task_one_actions[i] = 0
+                    current_number_of_task_two_actions[i] = 0
                     ###
         
         observations = new_observations
@@ -315,7 +344,7 @@ def evaluate_policy_meta_agent_new(
     if reward_threshold is not None:
         assert mean_reward > reward_threshold, "Mean reward below threshold: " f"{mean_reward:.2f} < {reward_threshold:.2f}"
     if return_episode_rewards:
-        return episode_rewards, episode_lengths, episode_number_of_collected_objects_task_one, episode_number_of_collected_objects_task_two
+        return episode_rewards, episode_lengths, episode_number_of_collected_objects_task_one, episode_number_of_collected_objects_task_two, episode_number_of_switches, episode_number_of_task_one_actions, episode_number_of_task_two_actions
     return mean_reward, std_reward
 
 

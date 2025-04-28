@@ -406,6 +406,9 @@ class EvalCallbackMetaAgentNew(EvalCallback):
         ### added by me
         self.evaluations_number_of_collected_objects_task_one: list[list[int]] = []
         self.evaluations_number_of_collected_objects_task_two: list[list[int]] = []
+        self.evaluations_number_of_switches: list[list[int]] = []
+        self.evaluations_number_of_task_one_actions: list[list[int]] = []
+        self.evaluations_number_of_task_two_actions: list[list[int]] = []
         ###
     
     def _on_step(self) -> bool:
@@ -427,7 +430,7 @@ class EvalCallbackMetaAgentNew(EvalCallback):
             self._is_success_buffer = []
             
             ### me: own evaluation function to get number of crashed and collected objects
-            episode_rewards, episode_lengths, episode_number_of_collected_objects_task_one, episode_number_of_collected_objects_task_two = evaluate_policy_meta_agent_new(
+            episode_rewards, episode_lengths, episode_number_of_collected_objects_task_one, episode_number_of_collected_objects_task_two, episode_number_of_switches, episode_number_of_task_one_actions, episode_number_of_task_two_actions = evaluate_policy_meta_agent_new(
                 self.model,
                 self.eval_env,
                 n_eval_episodes=self.n_eval_episodes,
@@ -436,6 +439,7 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                 return_episode_rewards=True,
                 warn=self.warn,
                 callback=self._log_success_callback,
+                logger=self.logger
             )
             ###
             
@@ -445,6 +449,9 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                 ### added by me
                 assert isinstance(episode_number_of_collected_objects_task_one, list)
                 assert isinstance(episode_number_of_collected_objects_task_two, list)
+                assert isinstance(episode_number_of_switches, list)
+                assert isinstance(episode_number_of_task_one_actions, list)
+                assert isinstance(episode_number_of_task_two_actions, list)
                 ###
                 self.evaluations_timesteps.append(self.num_timesteps)
                 self.evaluations_results.append(episode_rewards)
@@ -454,6 +461,9 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                     episode_number_of_collected_objects_task_one)
                 self.evaluations_number_of_collected_objects_task_two.append(
                     episode_number_of_collected_objects_task_two)
+                self.evaluations_number_of_switches.append(episode_number_of_switches)
+                self.evaluations_number_of_task_one_actions.append(episode_number_of_task_one_actions)
+                self.evaluations_number_of_task_two_actions.append(episode_number_of_task_two_actions)
                 ###
                 
                 kwargs = {}
@@ -470,6 +480,9 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                     ### added by me
                     number_of_collected_objects_task_one=self.evaluations_number_of_collected_objects_task_one,
                     number_of_collected_objects_task_two=self.evaluations_number_of_collected_objects_task_two,
+                    number_of_switches=self.evaluations_number_of_switches,
+                    number_of_task_one_actions=self.evaluations_number_of_task_one_actions,
+                    number_of_task_two_actions=self.evaluations_number_of_task_two_actions,
                     ###
                     **kwargs,  # type: ignore[arg-type]
                 )
@@ -481,6 +494,12 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                 episode_number_of_collected_objects_task_one), np.std(episode_number_of_collected_objects_task_one)
             mean_number_of_collected_objects_task_two, std_number_of_collected_objects_task_two = np.mean(
                 episode_number_of_collected_objects_task_two), np.std(episode_number_of_collected_objects_task_two)
+            mean_number_of_switches, std_number_of_switches = np.mean(episode_number_of_switches), np.std(
+                episode_number_of_switches)
+            mean_number_of_task_one_actions, std_number_of_task_one_actions = np.mean(
+                episode_number_of_task_one_actions), np.std(episode_number_of_task_one_actions)
+            mean_number_of_task_two_actions, std_number_of_task_two_actions = np.mean(
+                episode_number_of_task_two_actions), np.std(episode_number_of_task_two_actions)
             ###
             self.last_mean_reward = float(mean_reward)
             
@@ -493,6 +512,11 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                     f"Number of collected objects task one: {mean_number_of_collected_objects_task_one:.2f} +/- {std_number_of_collected_objects_task_one:.2f}")
                 print(
                     f"Number of collected objects task two: {mean_number_of_collected_objects_task_two:.2f} +/- {std_number_of_collected_objects_task_two:.2f}")
+                print(f"Number of switches: {mean_number_of_switches:.2f} +/- {std_number_of_switches:.2f}")
+                print(
+                    f"Number of task one actions: {mean_number_of_task_one_actions:.2f} +/- {std_number_of_task_one_actions:.2f}")
+                print(
+                    f"Number of task two actions: {mean_number_of_task_two_actions:.2f} +/- {std_number_of_task_two_actions:.2f}")
                 ###
             # Add to current Logger
             self.logger.record("eval/mean_reward", float(mean_reward))
@@ -502,6 +526,9 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                                mean_number_of_collected_objects_task_one)
             self.logger.record("eval/mean_number_of_collected_objects_task_two",
                                mean_number_of_collected_objects_task_two)
+            self.logger.record("eval/mean_number_of_switches", mean_number_of_switches)
+            self.logger.record("eval/mean_number_of_task_one_actions", mean_number_of_task_one_actions)
+            self.logger.record("eval/mean_number_of_task_two_actions", mean_number_of_task_two_actions)
             ###
             
             if len(self._is_success_buffer) > 0:
