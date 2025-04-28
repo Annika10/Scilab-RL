@@ -79,7 +79,7 @@ eval_after_n_steps: 2000
 n_epochs: 10000
 
 # The number of testing rollouts.
-n_test_rollouts: 50
+n_test_rollouts: 10
 
 # The n last epochs over which to average for determining early stopping condition.
 early_stop_last_n: 3
