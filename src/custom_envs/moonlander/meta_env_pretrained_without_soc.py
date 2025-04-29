@@ -277,8 +277,7 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         
         self.state = np.concatenate((self.state_of_collect_task_one, self.state_of_collect_task_two), axis=0).flatten()
         
-        return self.state, (active_reward + actual_inactive_reward).item(), (
-                active_is_done or inactive_is_done).item(), False, {
+        return self.state, active_reward.item(), (active_is_done or inactive_is_done).item(), False, {
             "collect_task_one_collected_objects": collect_task_one_info[0]["number_of_crashed_or_collected_objects"],
             "collect_task_two_collected_objects": collect_task_two_info[0]["number_of_crashed_or_collected_objects"],
             "collect_task_one_reward": collect_task_one_reward.item(),
