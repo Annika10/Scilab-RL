@@ -9,7 +9,7 @@ import os
 
 from stable_baselines3.common import base_class
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
-
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCWrapperEnv
 from src.custom_envs.moonlander.utils import get_position_and_object_positions_of_observation, \
     get_observation_of_position_and_object_positions
 
@@ -284,8 +284,11 @@ def evaluate_policy_meta_agent_new(
         
         logger.record("eval/SoC_collect_task_one", new_observations[0][0])
         logger.record("eval/SoC_collect_task_two", new_observations[0][1])
-        logger.record("eval/prediction_error", infos[0]["prediction_error"])
-        logger.record("eval/need_for_control", infos[0]["need_for_control"])
+        # when using SoC wrapper
+        if "prediction_error" in infos[0]:
+            logger.record("eval/prediction_error", infos[0]["prediction_error"])
+        if "need_for_control" in infos[0]:
+            logger.record("eval/need_for_control", infos[0]["need_for_control"])
         ###
         for i in range(n_envs):
             if episode_counts[i] < episode_count_targets[i]:
