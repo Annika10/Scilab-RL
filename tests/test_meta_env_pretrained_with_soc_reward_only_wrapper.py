@@ -4,11 +4,10 @@ import gymnasium as gym
 import numpy as np
 import math
 from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
-from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
 from src.custom_envs.register_envs import register_custom_envs
 
 
-class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
+class TestMetaEnvPretrainedWithSoCRewardOnly(unittest.TestCase):
     
     @mock.patch("src.custom_algorithms.ppo_moonlander.ppo_moonlander.PPO_MOONLANDER.predict")
     def test_empty_situation(self, ppo_moonlander_predict_mock) -> None:
@@ -26,8 +25,6 @@ class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
                        )
         # wrap in soc reward only wrapper
         env = SoCRewardOnlyWrapperEnv(env=env)
-        # wrap in soc obs and reward wrapper
-        env = SoCObsAndRewardWrapperEnv(env=env)
         env.reset()
         
         # initial x position 15 for task 0 and 25 for task 1
@@ -43,10 +40,11 @@ class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
         # [[25  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0]]
         
         state, reward, is_done, _, info = env.step(0)
-        # active SoC
-        self.assertEqual(state[0], 1)
-        # inactive SoC
-        self.assertEqual(state[1], 1.0 - (1 / 30))
+        new_state = np.array([25, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        # first 22 elements because of action 0
+        np.testing.assert_array_equal(new_state, state[:22])
+        # last 22 elements because of action 0
+        np.testing.assert_array_equal(new_state, state[22:])
         
         # evaluate starting SoCs (1.0 and 1.0)
         self.assertEqual(reward, 0)
@@ -76,8 +74,6 @@ class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
                        )
         # wrap in soc reward only wrapper
         env = SoCRewardOnlyWrapperEnv(env=env)
-        # wrap in soc obs and reward wrapper
-        env = SoCObsAndRewardWrapperEnv(env=env)
         env.reset()
         
         # initial x position 15 for task 0 and 25 for task 1
@@ -94,10 +90,12 @@ class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
             # [[25  1 30 -1 27  4 16 10 12 15 24 21  7 24  0  0  0  0  0  0  0  0]]
             
             state, reward, is_done, _, info = env.step(0)
-            # active SoC (PE = 0, NfC = 0)
-            self.assertEqual(state[0], 1)
-            # inactive SoC
-            self.assertEqual(state[1], 1.0 - (1 / 30))
+            new_state_active = np.array([25, 1, 35, 0, 28, 5, 20, 9, 25, 16, 35, 18, 39, 23, 26, 28, 0, 0, 0, 0, 0, 0])
+            # first 22 elements because of action 0
+            np.testing.assert_array_equal(new_state_active, state[:22])
+            new_state_inactive = np.array([25, 1, 30, -1, 27, 4, 16, 10, 12, 15, 24, 21, 7, 24, 0, 0, 0, 0, 0, 0, 0, 0])
+            # last 22 elements because of action 0
+            np.testing.assert_array_equal(new_state_inactive, state[22:])
             
             # evaluate starting SoCs (1.0 and 1.0)
             self.assertEqual(reward, 0)
@@ -118,10 +116,12 @@ class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
             # [[25  1 27 -1 16  5 12 10 24 16  7 19  0  0  0  0  0  0  0  0  0  0]]
             
             state, reward, is_done, _, info = env.step(0)
-            # active SoC (PE = 0, NfC = 0)
-            self.assertEqual(state[0], 1)
-            # inactive SoC
-            self.assertEqual(state[1], (1.0 - (1 / 30)) - (1 / 30))
+            new_state_active = np.array([35, 1, 20, 4, 25, 11, 35, 13, 39, 18, 26, 23, 25, 29, 0, 0, 0, 0, 0, 0, 0, 0])
+            # first 22 elements because of action 0
+            np.testing.assert_array_equal(new_state_active, state[:22])
+            new_state_inactive = np.array([25, 1, 0, 0, 27, -1, 16, 5, 12, 10, 24, 16, 7, 19, 0, 0, 0, 0, 0, 0, 0, 0])
+            # last 22 elements because of action 0
+            np.testing.assert_array_equal(new_state_inactive, state[22:])
             
             # evaluate last SoCs, task one: 1, task two: 0.97 -> should have switched --> reward of -1
             self.assertEqual(reward, -1)
@@ -144,10 +144,12 @@ class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
             # [[25  1 16  0 12  5 24 11  7 14  0  0  0  0  0  0  0  0  0  0  0  0]]
             
             state, reward, is_done, _, info = env.step(0)
-            # active SoC (PE = 0, NfC = 0)
-            self.assertEqual(state[0], 1)
-            # inactive SoC
-            self.assertEqual(state[1], ((1.0 - (1 / 30)) - (1 / 30)) - (1 / 30))
+            new_state_active = np.array([39, 1, 20, -1, 25, 6, 35, 8, 39, 13, 26, 18, 25, 24, 39, 29, 0, 0, 0, 0, 0, 0])
+            # first 22 elements because of action 0
+            np.testing.assert_array_equal(new_state_active, state[:22])
+            new_state_inactive = np.array([25, 1, 0, 0, 0, 0, 16, 0, 12, 5, 24, 11, 7, 14, 0, 0, 0, 0, 0, 0, 0, 0])
+            # last 22 elements because of action 0
+            np.testing.assert_array_equal(new_state_inactive, state[22:])
             
             # evaluate last SoCs, task one: 1, task two: 0.93 -> take action zero is bad --> reward of -1
             self.assertEqual(reward, -1)
@@ -169,10 +171,13 @@ class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
             # [[39  1 25  1 35  3 39  8 26 13 25 19 39 24  0  0  0  0  0  0  0  0]]
             
             state, reward, is_done, _, info = env.step(1)
-            # inactive SoC
-            self.assertEqual(state[0], 1.0 - (1 / 30))
-            # active SoC, (PE = 0, NfC = 0)
-            self.assertEqual(state[1], 1)
+            new_state_active = np.array(
+                [35, 1, 12, 0, 24, 6, 7, 9, 16, 14, 16, 15, 16, 16, 16, 17, 17, 25, 17, 26, 17, 27])
+            # last 22 elements because of action 1
+            np.testing.assert_array_equal(new_state_active, state[22:])
+            new_state_inactive = np.array([39, 1, 0, 0, 25, 1, 35, 3, 39, 8, 26, 13, 25, 19, 39, 24, 0, 0, 0, 0, 0, 0])
+            # first 22 elements because of action 1
+            np.testing.assert_array_equal(new_state_inactive, state[:22])
             
             # evaluate last SoCs, task one: 1, task two: 0.9 -> take action one is good --> reward of 1
             self.assertEqual(reward, 1)
@@ -210,8 +215,6 @@ class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
                        )
         # wrap in soc reward only wrapper
         env = SoCRewardOnlyWrapperEnv(env=env)
-        # wrap in soc obs and reward wrapper
-        env = SoCObsAndRewardWrapperEnv(env=env)
         env.reset()
         
         # initial x position 15 for task 0 and 25 for task 1
@@ -231,10 +234,13 @@ class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
             # [[25  1 30 -1 27  4 16 10 12 15 24 21  7 24  0  0  0  0  0  0  0  0]]
             
             state, reward, is_done, _, info = env.step(0)
-            # active SoC (PE ~ 1, NfC = 1)
-            self.assertEqual(round(state[0], 2), 0)
-            # inactive SoC
-            self.assertEqual(state[1], 1.0 - (1 / 30))
+            new_state_active = np.array(
+                [31, 1, 17, 0, 35, 0, 28, 5, 20, 9, 25, 16, 35, 18, 39, 18, 39, 23, 26, 28, 0, 0])
+            # first 22 elements because of action 0
+            np.testing.assert_array_equal(new_state_active, state[:22])
+            new_state_inactive = np.array([25, 1, 30, -1, 27, 4, 16, 10, 12, 15, 24, 21, 7, 24, 0, 0, 0, 0, 0, 0, 0, 0])
+            # last 22 elements because of action 0
+            np.testing.assert_array_equal(new_state_inactive, state[22:])
             
             # evaluate starting SoCs (1.0 and 1.0)
             self.assertEqual(reward, 0)
@@ -258,10 +264,13 @@ class TestMetaEnvPretrainedWithSoC(unittest.TestCase):
             # [[25  1 27 -1 16  5 12 10 24 16  7 19  0  0  0  0  0  0  0  0  0  0]]
             
             state, reward, is_done, _, info = env.step(0)
-            # active SoC (PE ~0.76, NfC = 0) -> 0.76/2 = 0.38 -> SoC: 1 - 0.38 = 0.62
-            self.assertEqual(state[0], 1 - (math.tanh(0.5 * 2) / 2))
-            # inactive SoC
-            self.assertEqual(state[1], (1.0 - (1 / 30)) - (1 / 30))
+            new_state_active = np.array(
+                [31, 1, 28, 0, 20, 4, 25, 11, 35, 13, 39, 13, 39, 18, 26, 23, 25, 29, 0, 0, 0, 0])
+            # first 22 elements because of action 0
+            np.testing.assert_array_equal(new_state_active, state[:22])
+            new_state_inactive = np.array([25, 1, 0, 0, 27, -1, 16, 5, 12, 10, 24, 16, 7, 19, 0, 0, 0, 0, 0, 0, 0, 0])
+            # last 22 elements because of action 0
+            np.testing.assert_array_equal(new_state_inactive, state[22:])
             
             # evaluate last SoCs, task one: 0.5, task two: 0.97 -> take action zero is good --> reward of 1
             self.assertEqual(reward, 1)

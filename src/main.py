@@ -28,7 +28,8 @@ from src.custom_envs.moonlander.image_wrapper import ImageWrapperEnv
 from src.custom_envs.moonlander.model_based_wrapper import ModelBasedWrapperEnv
 from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
 from src.custom_envs.moonlander.positions_model_based_wrapper import PositionsModelBasedWrapperEnv
-from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
 from src.custom_algorithms.ppo_moonlander.custom_cnn import CustomCNN
 
 # make git_label available in hydra
@@ -111,10 +112,16 @@ def get_env_instance(cfg, logger):
             train_env = PositionsWrapperEnv(env=train_env)
             eval_env = PositionsWrapperEnv(env=eval_env)
     
-    if "soc" in cfg and cfg.soc:
-        print("Wrapping Environment in SoCWrapperEnv")
-        train_env = SoCWrapperEnv(env=train_env)
-        eval_env = SoCWrapperEnv(env=eval_env)
+    if "soc_reward_only" in cfg and cfg.soc:
+        print("Wrapping Environment in SoCRewardOnlyWrapperEnv")
+        train_env = SoCRewardOnlyWrapperEnv(env=train_env)
+        eval_env = SoCRewardOnlyWrapperEnv(env=eval_env)
+    if "soc" in cfg and cfg.soc_obs:
+        print("Wrapping Environment in SoCObsAndRewardWrapperEnv")
+        train_env = SoCRewardOnlyWrapperEnv(env=train_env)
+        eval_env = SoCRewardOnlyWrapperEnv(env=eval_env)
+        train_env = SoCObsAndRewardWrapperEnv(env=train_env)
+        eval_env = SoCObsAndRewardWrapperEnv(env=eval_env)
     
     # At last, wrap in DummyVecEnv. This has to be the last wrapper, because it breaks the .unwrapped attribute.
     train_env = DummyVecEnv([lambda: train_env])
