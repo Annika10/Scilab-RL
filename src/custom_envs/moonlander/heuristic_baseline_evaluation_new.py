@@ -13,7 +13,8 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is
 from src.utils.animation_util import LiveAnimationPlot
 from src.custom_envs import ROOT_DIR
 
-from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
 
 
 # USE EVALUATE POLICY OF STABLE BASELINES 3 WITHOUT A MODEL BUT A HEURISTIC
@@ -341,7 +342,7 @@ def calculate_action_sequence_for_switch_per_percentage(dodge_percentage: float,
 if __name__ == "__main__":
     ### DEFINE BEFORE ###
     
-    mode = "switch_every_frame"  # "SoC_switching", "switch_per_percentage", "switch_every_frame"
+    mode = "switch_per_percentage"  # "SoC_switching", "switch_per_percentage", "switch_every_frame"
     percentage_pairs = [[0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
                         [0.35, 0.65], [0.4, 0.6], [0.45, 0.55], [0.5, 0.5], [0.55, 0.45], [0.6, 0.4], [0.65, 0.35],
                         [0.7, 0.3], [0.75, 0.25], [0.8, 0.2], [0.85, 0.15], [0.9, 0.1], [0.95, 0.05], [1, 0]]
@@ -410,6 +411,9 @@ if __name__ == "__main__":
                            list_of_object_dict_lists_collect_task_one_filename=filename_collect_task_one,
                            list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two,
                            input_noise_in_subtasks_on=False, consecutive_frames=5)
+            env = SoCRewardOnlyWrapperEnv(env=env)
+            # FIXME: why does it disappear when applying the wrapper?
+            env.render_mode = "human"
             print(
                 f"Currently evaluating collect task one percentage: {percentage_pair[0]}"
                 f" and collect task two percentage: {percentage_pair[1]}")
@@ -437,7 +441,8 @@ if __name__ == "__main__":
                        list_of_object_dict_lists_collect_task_one_filename=filename_collect_task_one,
                        list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two,
                        input_noise_in_subtasks_on=False, consecutive_frames=5)
-        env = SoCWrapperEnv(env=env)
+        env = SoCRewardOnlyWrapperEnv(env=env)
+        env = SoCObsAndRewardWrapperEnv(env=env)
         # FIXME: why does it disappear when applying the wrapper?
         env.render_mode = "human"
         
@@ -461,6 +466,9 @@ if __name__ == "__main__":
                        list_of_object_dict_lists_collect_task_one_filename=filename_collect_task_one,
                        list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two,
                        input_noise_in_subtasks_on=False, consecutive_frames=5)
+        env = SoCRewardOnlyWrapperEnv(env=env)
+        # FIXME: why does it disappear when applying the wrapper?
+        env.render_mode = "human"
         
         _, _ = evaluate_policy(
             env=env,

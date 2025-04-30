@@ -15,6 +15,7 @@ class SoCObsAndRewardWrapperEnv(gym.Env):
             raise NotImplementedError(
                 f"This SoCObsAndRewardWrapperEnv is not implemented for the environment {self.env.unwrapped} yet!")
         
+        self.action_space = self.env.action_space
         # NfC task one, reward task one, NfC task two, reward task two (two are predicted)
         self.observation_space = gym.spaces.Box(
             low=0,

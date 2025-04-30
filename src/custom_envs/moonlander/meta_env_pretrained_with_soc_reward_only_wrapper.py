@@ -17,6 +17,9 @@ class SoCRewardOnlyWrapperEnv(gym.Env):
             raise NotImplementedError(
                 f"This SoCRewardOnlyWrapperEnv is not implemented for the environment {self.env.unwrapped} yet!")
         
+        self.action_space = self.env.action_space
+        self.observation_space = self.env.observation_space
+        
         self.object_dict_list_task_one = \
             self.env.trained_collect_task_one.env.env_method("get_wrapper_attr", "object_dict_list")[0]
         self.object_dict_list_task_two = \

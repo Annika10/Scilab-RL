@@ -30,6 +30,7 @@ from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
 from src.custom_envs.moonlander.positions_model_based_wrapper import PositionsModelBasedWrapperEnv
 from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
 from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_switching_boost import SwitchingBoostWrapperEnv
 from src.custom_algorithms.ppo_moonlander.custom_cnn import CustomCNN
 
 # make git_label available in hydra
@@ -122,6 +123,10 @@ def get_env_instance(cfg, logger):
         eval_env = SoCRewardOnlyWrapperEnv(env=eval_env)
         train_env = SoCObsAndRewardWrapperEnv(env=train_env)
         eval_env = SoCObsAndRewardWrapperEnv(env=eval_env)
+    if "boost_value" in cfg and cfg.boost_value > 0:
+        print("Wrapping Environment in SwitchingBoostWrapperEnv")
+        train_env = SwitchingBoostWrapperEnv(env=train_env, boost_value=cfg.boost_value)
+        eval_env = SwitchingBoostWrapperEnv(env=eval_env, boost_value=cfg.boost_value)
     
     # At last, wrap in DummyVecEnv. This has to be the last wrapper, because it breaks the .unwrapped attribute.
     train_env = DummyVecEnv([lambda: train_env])
