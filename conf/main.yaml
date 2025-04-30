@@ -126,5 +126,7 @@ image_observation: 0
 model_based: 0
 # if the observation consists of positions instead of images
 positions: 0
-# if the meta agent is based on SoCs
+# if the meta agent is based on SoCs in observations and rewards
 soc: 0
+# if the meta agent is based on SoCs only in rewards
+soc_reward_only: 0
