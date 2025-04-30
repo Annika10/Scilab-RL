@@ -25,6 +25,8 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
                        input_noise_in_subtasks_on=True,
                        list_of_object_dict_lists_collect_task_one_filename="../../../tests/test_data/collect_0_different_situations_self_defined.csv",
                        list_of_object_dict_lists_collect_task_two_filename="../../../tests/test_data/collect_1_self_defined.csv",
+                       consecutive_frames=1,
+                       normalize_rewards=True
                        )
         
         env.reset()
@@ -130,6 +132,8 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
             np.testing.assert_array_equal(new_state_inactive, state[:22])
             
             state, reward, is_done, _, info = env.step(1)
+            # collect an object
+            self.assertEqual(round(reward, ndigits=0), 1)
             
             ### active task
             # actual state
@@ -171,6 +175,8 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
         
         with self.subTest("switch to action 0"):
             state, reward, is_done, _, info = env.step(0)
+            # collect an object
+            self.assertEqual(round(reward, ndigits=0), 1)
             
             ### active task
             # actual state
@@ -202,9 +208,11 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
                        # standard path '/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/src/custom_envs/moonlander'
                        config_file_name_collect_task_one="../../../tests/test_data/levels/config_collect_task_one_hard.yaml",
                        config_file_name_collect_task_two="../../../tests/test_data/levels/config_collect_task_two_hard.yaml",
-                       input_noise_in_subtasks_on=False, consecutive_frames=5,
+                       input_noise_in_subtasks_on=False,
                        list_of_object_dict_lists_collect_task_one_filename="../../../tests/test_data/collect_0_self_defined.csv",
                        list_of_object_dict_lists_collect_task_two_filename="../../../tests/test_data/collect_1_self_defined.csv",
+                       consecutive_frames=5,
+                       normalize_rewards=True
                        )
         env.reset()
         with self.subTest("action 0 (internally 5 times)"):
@@ -231,6 +239,8 @@ class TestMetaEnvPretrainedWithoutSoC(unittest.TestCase):
             self.assertEqual(info["collect_task_one_collected_objects"], 2)
             self.assertEqual(info["collect_task_two_collected_objects"], 0)
             self.assertListEqual(info["action_of_current_task_agent"], [[2], [2], [2], [2], [2]])
+            # reward > 2 because we collected two objects in the five steps
+            self.assertGreater(reward, 2)
 
 
 if __name__ == '__main__':

@@ -7,9 +7,7 @@ import torch
 import pandas as pd
 import os
 
-from stable_baselines3.common import base_class
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
-from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCWrapperEnv
 from src.custom_envs.moonlander.utils import get_position_and_object_positions_of_observation, \
     get_observation_of_position_and_object_positions
 

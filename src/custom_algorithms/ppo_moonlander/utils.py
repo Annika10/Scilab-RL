@@ -140,8 +140,8 @@ def calculate_need_for_control(last_observation_positions: torch.Tensor, policy,
 def normalize_gaussian_with_distance_reward(task: str, absolute_reward) -> float:
     # normalize reward with MinMaxScaler
     if task == "collect":
-        one_percent_boundary = -200
-        ninty_nine_percent_boundary = 400
+        one_percent_boundary = np.array([-200])
+        ninty_nine_percent_boundary = np.array([400])
         
         # 99% of the numbers are between -200 and 400
         if absolute_reward > ninty_nine_percent_boundary:

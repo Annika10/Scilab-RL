@@ -15,6 +15,7 @@ from src.custom_algorithms.ppo_moonlander import PPO_MOONLANDER
 from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
 from src.custom_envs.moonlander.utils import get_observation_of_position_and_object_positions, \
     get_next_position_observation_moonlander
+from src.custom_algorithms.ppo_moonlander.utils import normalize_gaussian_with_distance_reward
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -32,7 +33,8 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
                  list_of_object_dict_lists_collect_task_one_filename: str = None,
                  list_of_object_dict_lists_collect_task_two_filename: str = None,
                  render_mode=None, input_noise_in_subtasks_on: bool = False,
-                 consecutive_frames: int = 1):
+                 consecutive_frames: int = 1,
+                 normalize_rewards: bool = False):
         
         # load configs of pretrained models
         if config_file_name_collect_task_one is None:
@@ -170,6 +172,7 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
             self.consecutive_frames = consecutive_frames
         else:
             self.consecutive_frames = 1
+        self.normalize_rewards = normalize_rewards
         
         # for rendering
         # FIXME: However, Agg does not open any display window.
@@ -260,22 +263,28 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
                 # collect task one
                 self.state_of_collect_task_one = active_new_state
                 self.state_of_collect_task_two = inactive_next_belief_state
-                collect_task_one_reward = active_reward
-                collect_task_two_reward = actual_inactive_reward
+                collect_task_one_reward = normalize_gaussian_with_distance_reward(task="collect",
+                                                                                  absolute_reward=active_reward) if self.normalize_rewards else active_reward
+                collect_task_two_reward = normalize_gaussian_with_distance_reward(task="collect",
+                                                                                  absolute_reward=actual_inactive_reward) if self.normalize_rewards else actual_inactive_reward
                 collect_task_one_info = active_info
                 collect_task_two_info = actual_inactive_info
             case 1:
                 # collect task two
                 self.state_of_collect_task_one = inactive_next_belief_state
                 self.state_of_collect_task_two = active_new_state
-                collect_task_one_reward = actual_inactive_reward
-                collect_task_two_reward = active_reward
+                collect_task_one_reward = normalize_gaussian_with_distance_reward(task="collect",
+                                                                                  absolute_reward=actual_inactive_reward) if self.normalize_rewards else actual_inactive_reward
+                collect_task_two_reward = normalize_gaussian_with_distance_reward(task="collect",
+                                                                                  absolute_reward=active_reward) if self.normalize_rewards else active_reward
                 collect_task_one_info = actual_inactive_info
                 collect_task_two_info = active_info
             case _:
                 raise ValueError(f"Invalid action {action}")
         
         self.state = np.concatenate((self.state_of_collect_task_one, self.state_of_collect_task_two), axis=0).flatten()
+        active_reward = normalize_gaussian_with_distance_reward(task="collect",
+                                                                absolute_reward=active_reward) if self.normalize_rewards else active_reward
         
         return self.state, active_reward.item(), (active_is_done or inactive_is_done).item(), False, {
             "collect_task_one_collected_objects": collect_task_one_info[0]["number_of_crashed_or_collected_objects"],
