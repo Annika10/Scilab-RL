@@ -112,11 +112,11 @@ def get_env_instance(cfg, logger):
             train_env = PositionsWrapperEnv(env=train_env)
             eval_env = PositionsWrapperEnv(env=eval_env)
     
-    if "soc_reward_only" in cfg and cfg.soc:
+    if "soc_reward_only" in cfg and cfg.soc_reward_only:
         print("Wrapping Environment in SoCRewardOnlyWrapperEnv")
         train_env = SoCRewardOnlyWrapperEnv(env=train_env)
         eval_env = SoCRewardOnlyWrapperEnv(env=eval_env)
-    if "soc" in cfg and cfg.soc_obs:
+    if "soc" in cfg and cfg.soc:
         print("Wrapping Environment in SoCObsAndRewardWrapperEnv")
         train_env = SoCRewardOnlyWrapperEnv(env=train_env)
         eval_env = SoCRewardOnlyWrapperEnv(env=eval_env)
