@@ -130,3 +130,5 @@ positions: 0
 soc: 0
 # if the meta agent is based on SoCs only in rewards
 soc_reward_only: 0
+# boost value for switching
+boost_value: 0
