@@ -482,6 +482,17 @@ def register_custom_envs():
                  'consecutive_frames': 5},
              max_episode_steps=500
              )
+    register(id="MetaEnv-pretrained-without-SoC-easy-easy-input-noise-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_input_noise_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_easy_input_noise_positions_07_04_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_easy.yaml",
+                 'consecutive_frames': 5,
+                 'input_noise_in_subtasks_on': True},
+             max_episode_steps=500
+             )
     register(id="MetaEnv-pretrained-without-SoC-easy-hard-v0",
              entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
              kwargs={
@@ -492,6 +503,17 @@ def register_custom_envs():
                  'consecutive_frames': 5},
              max_episode_steps=500
              )
+    register(id="MetaEnv-pretrained-without-SoC-easy-hard--input-noise-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_input_noise_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_easy.yaml",
+                 'consecutive_frames': 5,
+                 'input_noise_in_subtasks_on': True},
+             max_episode_steps=500
+             )
     register(id="MetaEnv-pretrained-without-SoC-hard-hard-v0",
              entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
              kwargs={
@@ -500,6 +522,17 @@ def register_custom_envs():
                  'config_file_name_collect_task_one': "config_collect_hard.yaml",
                  'config_file_name_collect_task_two': "config_collect_hard.yaml",
                  'consecutive_frames': 5},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-hard-hard-input-noise-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_hard.yaml",
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml",
+                 'consecutive_frames': 5,
+                 'input_noise_in_subtasks_on': True},
              max_episode_steps=500
              )
     
