@@ -13,7 +13,8 @@ class TestMetaEnvPretrainedSwitchingBoost(unittest.TestCase):
                        # standard path '/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/src/custom_envs/moonlander'
                        config_file_name_collect_task_one="../../../tests/test_data/levels/config_collect_task_one_hard.yaml",
                        config_file_name_collect_task_two="../../../tests/test_data/levels/config_collect_task_two_hard.yaml",
-                       input_noise_in_subtasks_on=True,
+                       input_noise_in_subtasks_one=False,
+                       input_noise_in_subtasks_two=False,
                        consecutive_frames=5,
                        normalize_rewards=True
                        )

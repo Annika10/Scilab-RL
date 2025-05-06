@@ -32,7 +32,8 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
                  config_file_name_collect_task_one: str = None, config_file_name_collect_task_two: str = None,
                  list_of_object_dict_lists_collect_task_one_filename: str = None,
                  list_of_object_dict_lists_collect_task_two_filename: str = None,
-                 render_mode=None, input_noise_in_subtasks_on: bool = False,
+                 render_mode=None,
+                 input_noise_in_subtasks_one: bool = False, input_noise_in_subtasks_two: bool = False,
                  consecutive_frames: int = 1,
                  normalize_rewards: bool = False):
         
@@ -101,19 +102,17 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         collect_task_one_task_difficulty = config_collect_task_one["world"]["difficulty"]
         collect_task_two_task_difficulty = config_collect_task_two["world"]["difficulty"]
         
-        if input_noise_in_subtasks_on:
-            input_noise_str = "input-noise-"
-        else:
-            input_noise_str = ""
+        input_noise_str_one = "input-noise-" if input_noise_in_subtasks_one else ""
+        input_noise_str_two = "input-noise-" if input_noise_in_subtasks_two else ""
         # environments for the pretrained models
         collect_task_one_env = make_vec_env(
-            f"MoonlanderWorld-collect-gaussian_with_distance-{collect_task_one_task_difficulty}-{input_noise_str}v0",
+            f"MoonlanderWorld-collect-gaussian_with_distance-{collect_task_one_task_difficulty}-{input_noise_str_one}v0",
             n_envs=1,
             wrapper_class=PositionsWrapperEnv,
             env_kwargs={"list_of_object_dict_lists": list_of_object_dict_lists_collect_task_one,
                         "config_file_name": config_path_collect_task_one})
         collect_task_two_env = make_vec_env(
-            f"MoonlanderWorld-collect-gaussian_with_distance-{collect_task_two_task_difficulty}-{input_noise_str}v0",
+            f"MoonlanderWorld-collect-gaussian_with_distance-{collect_task_two_task_difficulty}-{input_noise_str_two}v0",
             n_envs=1,
             wrapper_class=PositionsWrapperEnv,
             env_kwargs={"list_of_object_dict_lists": list_of_object_dict_lists_collect_task_two,
