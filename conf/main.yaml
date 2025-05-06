@@ -132,3 +132,5 @@ soc: 0
 soc_reward_only: 0
 # boost value for switching
 boost_value: 0
+# if the prediction error is reversed
+reversed_prediction_error: 0

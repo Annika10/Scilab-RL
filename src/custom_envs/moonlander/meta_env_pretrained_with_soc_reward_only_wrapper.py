@@ -11,11 +11,12 @@ class SoCRewardOnlyWrapperEnv(gym.Env):
     A class for wrapping the meta environment pretrained and using the SoC as a reward
     """
     
-    def __init__(self, env):
+    def __init__(self, env, reversed_prediction_error=False):
         self.env = env
         if not isinstance(self.env.unwrapped, MetaEnvPretrainedWithoutSoC):
             raise NotImplementedError(
                 f"This SoCRewardOnlyWrapperEnv is not implemented for the environment {self.env.unwrapped} yet!")
+        self.reversed_prediction_error = reversed_prediction_error
         
         self.action_space = self.env.action_space
         self.observation_space = self.env.observation_space
@@ -112,8 +113,11 @@ class SoCRewardOnlyWrapperEnv(gym.Env):
             weighted=True)
         # prediction error is high, if the prediction and actual observation do not match
         # need for control is high if the rewards of the optimal trajectory are quite different to the rewards of the default trajectory
-        # soc = mean of prediction error and need_for_control
-        active_SoC = 1 - ((prediction_error + need_for_control) / 2)
+        if not self.reversed_prediction_error:
+            # soc = mean of prediction error and need_for_control
+            active_SoC = 1 - ((prediction_error + need_for_control) / 2)
+        else:
+            active_SoC = ((0.5 * prediction_error + 0.5) + (-0.5 * need_for_control + 0.5)) - 0.5
         
         # SoC update --> degrade SoC by factor of observation height, so that after half of the steps of the observation
         # the SoC is 0.5 and after all steps the SoC is 0

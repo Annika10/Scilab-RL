@@ -113,14 +113,19 @@ def get_env_instance(cfg, logger):
             train_env = PositionsWrapperEnv(env=train_env)
             eval_env = PositionsWrapperEnv(env=eval_env)
     
+    if "reversed_prediction_error" in cfg and cfg.reversed_prediction_error:
+        reversed_prediction_error = True
+    else:
+        reversed_prediction_error = False
+    
     if "soc_reward_only" in cfg and cfg.soc_reward_only:
         print("Wrapping Environment in SoCRewardOnlyWrapperEnv")
-        train_env = SoCRewardOnlyWrapperEnv(env=train_env)
-        eval_env = SoCRewardOnlyWrapperEnv(env=eval_env)
+        train_env = SoCRewardOnlyWrapperEnv(env=train_env, reversed_prediction_error=reversed_prediction_error)
+        eval_env = SoCRewardOnlyWrapperEnv(env=eval_env, reversed_prediction_error=reversed_prediction_error)
     if "soc" in cfg and cfg.soc:
         print("Wrapping Environment in SoCObsAndRewardWrapperEnv")
-        train_env = SoCRewardOnlyWrapperEnv(env=train_env)
-        eval_env = SoCRewardOnlyWrapperEnv(env=eval_env)
+        train_env = SoCRewardOnlyWrapperEnv(env=train_env, reversed_prediction_error=reversed_prediction_error)
+        eval_env = SoCRewardOnlyWrapperEnv(env=eval_env, reversed_prediction_error=reversed_prediction_error)
         train_env = SoCObsAndRewardWrapperEnv(env=train_env)
         eval_env = SoCObsAndRewardWrapperEnv(env=eval_env)
     if "boost_value" in cfg and cfg.boost_value > 0:
