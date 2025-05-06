@@ -1,3 +1,4 @@
+import argparse
 import os
 import random
 import csv
@@ -340,15 +341,29 @@ def calculate_action_sequence_for_switch_per_percentage(dodge_percentage: float,
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", type=str, default=None)
+    parser.add_argument("--task_one_difficulty", type=str, default=None)
+    parser.add_argument("--task_two_difficulty", type=str, default=None)
+    parser.add_argument("--input_noise_string", type=str, default=None)
+    args = parser.parse_args()
+    
+    mode = args.mode
+    task_one_difficulty = args.task_one_difficulty
+    task_two_difficulty = args.task_two_difficulty
+    if args.input_noise_string:
+        input_noise_string = "-" + args.input_noise_string
+    else:
+        input_noise_string = ""
     ### DEFINE BEFORE ###
     
-    mode = "switch_every_frame"  # "SoC_switching", "switch_per_percentage", "switch_every_frame"
+    # mode = "switch_every_frame"  # "SoC_switching", "switch_per_percentage", "switch_every_frame"
     percentage_pairs = [[0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
                         [0.35, 0.65], [0.4, 0.6], [0.45, 0.55], [0.5, 0.5], [0.55, 0.45], [0.6, 0.4], [0.65, 0.35],
                         [0.7, 0.3], [0.75, 0.25], [0.8, 0.2], [0.85, 0.15], [0.9, 0.1], [0.95, 0.05], [1, 0]]
-    task_one_difficulty = "easy"  # "easy", "hard"
-    task_two_difficulty = "hard"  # "easy", "hard"
-    input_noise_string = "-input-noise"  # "", "-input-noise-in-one-task", "-input-noise-in-easy-task", "-input-noise-in-hard-task"
+    # task_one_difficulty = "easy"  # "easy", "hard"
+    # task_two_difficulty = "hard"  # "easy", "hard"
+    # input_noise_string = "-input-noise"  # "", "-input-noise-in-one-task", "-input-noise-in-easy-task", "-input-noise-in-hard-task"
     
     render = False
     n_eval_episodes = 100
