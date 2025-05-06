@@ -342,31 +342,23 @@ def calculate_action_sequence_for_switch_per_percentage(dodge_percentage: float,
 if __name__ == "__main__":
     ### DEFINE BEFORE ###
     
-    mode = "switch_per_percentage"  # "SoC_switching", "switch_per_percentage", "switch_every_frame"
+    mode = "switch_every_frame"  # "SoC_switching", "switch_per_percentage", "switch_every_frame"
     percentage_pairs = [[0, 1], [0.05, 0.95], [0.1, 0.9], [0.15, 0.85], [0.2, 0.8], [0.25, 0.75], [0.3, 0.7],
                         [0.35, 0.65], [0.4, 0.6], [0.45, 0.55], [0.5, 0.5], [0.55, 0.45], [0.6, 0.4], [0.65, 0.35],
                         [0.7, 0.3], [0.75, 0.25], [0.8, 0.2], [0.85, 0.15], [0.9, 0.1], [0.95, 0.05], [1, 0]]
-    task_one_difficulty = "easy"
-    task_two_difficulty = "hard"
+    task_one_difficulty = "easy"  # "easy", "hard"
+    task_two_difficulty = "hard"  # "easy", "hard"
+    input_noise_string = "-input-noise"  # "", "-input-noise-in-one-task", "-input-noise-in-easy-task", "-input-noise-in-hard-task"
     
     render = False
     n_eval_episodes = 100
     
     ####################
     
-    meta_env_name = f"MetaEnv-pretrained-without-SoC-{task_one_difficulty}-{task_two_difficulty}-v0"
+    meta_env_name = f"MetaEnv-pretrained-without-SoC-{task_one_difficulty}-{task_two_difficulty}{input_noise_string}-v0"
     
     filename_collect_task_one = f"collect_{task_one_difficulty}_object_list_30_times_40_0.csv"
     filename_collect_task_two = f"collect_{task_two_difficulty}_object_list_30_times_40_1.csv"
-    
-    if task_one_difficulty == "easy":
-        collect_task_one_best_model_name = "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model"
-    else:
-        collect_task_one_best_model_name = "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model"
-    if task_two_difficulty == "easy":
-        collect_task_two_best_model_name = "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model"
-    else:
-        collect_task_two_best_model_name = "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model"
     
     config_file_name_collect_task_one = f"../../../tests/test_data/levels/eval_config_collect_{task_one_difficulty}.yaml"
     config_file_name_collect_task_two = f"../../../tests/test_data/levels/eval_config_collect_{task_two_difficulty}.yaml"
@@ -377,11 +369,11 @@ if __name__ == "__main__":
     register_custom_envs()
     
     if mode == "SoC_switching":
-        filepath_for_storage = directory / f"{collect_task_one_best_model_name}_{collect_task_two_best_model_name}_soc_switching.csv"
+        filepath_for_storage = directory / f"collect_{task_one_difficulty}_{task_two_difficulty}{input_noise_string}_soc_switching.csv"
     elif mode == "switch_per_percentage":
-        filepath_for_storage = directory / f"{collect_task_one_best_model_name}_{collect_task_two_best_model_name}_percentage_pairs.csv"
+        filepath_for_storage = directory / f"collect_{task_one_difficulty}_{task_two_difficulty}{input_noise_string}_percentage_pairs.csv"
     else:
-        filepath_for_storage = directory / f"{collect_task_one_best_model_name}_{collect_task_two_best_model_name}_switch_every_frame.csv"
+        filepath_for_storage = directory / f"collect_{task_one_difficulty}_{task_two_difficulty}{input_noise_string}_switch_every_frame.csv"
     
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -404,13 +396,10 @@ if __name__ == "__main__":
         for percentage_pair in percentage_pairs:
             # Initialise the environment
             env = gym.make(meta_env_name, render_mode="human",
-                           collect_task_one_best_model_name=collect_task_one_best_model_name,
-                           collect_task_two_best_model_name=collect_task_two_best_model_name,
                            config_file_name_collect_task_one=config_file_name_collect_task_one,
                            config_file_name_collect_task_two=config_file_name_collect_task_two,
                            list_of_object_dict_lists_collect_task_one_filename=filename_collect_task_one,
-                           list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two,
-                           input_noise_in_subtasks_on=False, consecutive_frames=5)
+                           list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two)
             env = SoCRewardOnlyWrapperEnv(env=env)
             # FIXME: why does it disappear when applying the wrapper?
             env.render_mode = "human"
@@ -434,13 +423,10 @@ if __name__ == "__main__":
     elif mode == "SoC_switching":
         # Initialise the environment
         env = gym.make(meta_env_name, render_mode="human",
-                       collect_task_one_best_model_name=collect_task_one_best_model_name,
-                       collect_task_two_best_model_name=collect_task_two_best_model_name,
                        config_file_name_collect_task_one=config_file_name_collect_task_one,
                        config_file_name_collect_task_two=config_file_name_collect_task_two,
                        list_of_object_dict_lists_collect_task_one_filename=filename_collect_task_one,
-                       list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two,
-                       input_noise_in_subtasks_on=False, consecutive_frames=5)
+                       list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two)
         env = SoCRewardOnlyWrapperEnv(env=env)
         env = SoCObsAndRewardWrapperEnv(env=env)
         # FIXME: why does it disappear when applying the wrapper?
@@ -459,13 +445,10 @@ if __name__ == "__main__":
     elif mode == "switch_every_frame":
         # Initialise the environment
         env = gym.make(meta_env_name, render_mode="human",
-                       collect_task_one_best_model_name=collect_task_one_best_model_name,
-                       collect_task_two_best_model_name=collect_task_two_best_model_name,
                        config_file_name_collect_task_one=config_file_name_collect_task_one,
                        config_file_name_collect_task_two=config_file_name_collect_task_two,
                        list_of_object_dict_lists_collect_task_one_filename=filename_collect_task_one,
-                       list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two,
-                       input_noise_in_subtasks_on=False, consecutive_frames=5)
+                       list_of_object_dict_lists_collect_task_two_filename=filename_collect_task_two)
         env = SoCRewardOnlyWrapperEnv(env=env)
         # FIXME: why does it disappear when applying the wrapper?
         env.render_mode = "human"
