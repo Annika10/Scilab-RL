@@ -67,6 +67,7 @@ class SoCRewardOnlyWrapperEnv(gym.Env):
                 raise ValueError(f"Invalid action {action}")
         
         self.state, reward_gamescore, done, truncated, info = self.env.step(action)
+        info["reward_gamescore"] = reward_gamescore
         
         match action:
             

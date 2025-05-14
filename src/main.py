@@ -30,6 +30,7 @@ from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
 from src.custom_envs.moonlander.positions_model_based_wrapper import PositionsModelBasedWrapperEnv
 from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
 from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_observation_only_wrapper import SoCObsOnlyWrapperEnv
 from src.custom_envs.moonlander.meta_env_pretrained_with_switching_boost import SwitchingBoostWrapperEnv
 from src.custom_algorithms.ppo_moonlander.custom_cnn import CustomCNN
 
@@ -128,6 +129,14 @@ def get_env_instance(cfg, logger):
         eval_env = SoCRewardOnlyWrapperEnv(env=eval_env, reversed_prediction_error=reversed_prediction_error)
         train_env = SoCObsAndRewardWrapperEnv(env=train_env)
         eval_env = SoCObsAndRewardWrapperEnv(env=eval_env)
+    if "soc_obs_only" in cfg and cfg.soc_obs_only:
+        print("Wrapping Environment in SoCObsOnlyWrapperEnv")
+        train_env = SoCRewardOnlyWrapperEnv(env=train_env, reversed_prediction_error=reversed_prediction_error)
+        eval_env = SoCRewardOnlyWrapperEnv(env=eval_env, reversed_prediction_error=reversed_prediction_error)
+        train_env = SoCObsAndRewardWrapperEnv(env=train_env)
+        eval_env = SoCObsAndRewardWrapperEnv(env=eval_env)
+        train_env = SoCObsOnlyWrapperEnv(env=train_env)
+        eval_env = SoCObsOnlyWrapperEnv(env=eval_env)
     if "boost_value" in cfg and cfg.boost_value > 0:
         print("Wrapping Environment in SwitchingBoostWrapperEnv")
         train_env = SwitchingBoostWrapperEnv(env=train_env, boost_value=cfg.boost_value)
