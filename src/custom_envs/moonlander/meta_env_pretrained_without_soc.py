@@ -207,6 +207,7 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
                 break
         
         info_over_consecutive_frames["action_of_current_task_agent"] = action_of_current_task_agent_list
+        info_over_consecutive_frames["position_state"] = last_state
         
         return last_state, reward_over_consecutive_frames, done, truncated, info_over_consecutive_frames
     

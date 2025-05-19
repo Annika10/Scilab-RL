@@ -2,14 +2,17 @@ import os
 import mlflow
 import gymnasium as gym
 import numpy as np
-
+import csv
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import sync_envs_normalization, VecEnv
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-
+from typing import Any, Dict, Optional, Union
+from src.custom_envs import ROOT_DIR
 from src.utils.custom_evaluation import evaluate_policy_moonlander, evaluate_policy_meta_agent_new
 from src.utils.custom_evaluation import evaluate_policy_meta_agent as custom_evaluate_policy_meta_agent
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_observation_only_wrapper import SoCObsOnlyWrapperEnv
 
 
 class EarlyStopCallback(BaseCallback):
@@ -409,6 +412,58 @@ class EvalCallbackMetaAgentNew(EvalCallback):
         self.evaluations_number_of_switches: list[list[int]] = []
         self.evaluations_number_of_task_one_actions: list[list[int]] = []
         self.evaluations_number_of_task_two_actions: list[list[int]] = []
+        self.evaluations_number_of_consecutive_actions_in_task_one: list[list[int]] = []
+        self.evaluations_number_of_consecutive_actions_in_task_two: list[list[int]] = []
+        self.evaluations_objects_visible_when_switching_task_one: list[list[int]] = []
+        self.evaluations_objects_visible_when_not_switching_task_one: list[list[int]] = []
+        self.evaluations_objects_visible_when_switching_task_two: list[list[int]] = []
+        self.evaluations_objects_visible_when_not_switching_task_two: list[list[int]] = []
+        self.evaluations_mean_distance_to_visible_objects_when_switching_task_one: list[list[int]] = []
+        self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_one: list[list[int]] = []
+        self.evaluations_mean_distance_to_visible_objects_when_switching_task_two: list[list[int]] = []
+        self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_two: list[list[int]] = []
+        
+        # get configurations, cut off .yaml, difficulties = str, input noise = bool
+        difficulty_task_one = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
+                                  "config_file_name_collect_task_one"][-9:-5]
+        difficulty_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
+                                  "config_file_name_collect_task_two"][-9:-5]
+        input_noise_task_one = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
+            "input_noise_in_subtasks_one"]
+        input_noise_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
+            "input_noise_in_subtasks_two"]
+        agent_name = ""
+        if isinstance(eval_env.envs[0], SoCObsAndRewardWrapperEnv):
+            agent_name = "SoCObsAndRewardWrapperEnv"
+        elif isinstance(eval_env.envs[0], SoCObsOnlyWrapperEnv):
+            agent_name = "SoCObsOnlyWrapperEnv"
+        elif isinstance(eval_env.envs[0], SoCRewardOnlyWrapperEnv):
+            agent_name = "SoCRewardOnlyWrapperEnv"
+        self.filepath_for_storage = ROOT_DIR / f"logs/collect_{difficulty_task_one}_{difficulty_task_two}_{str(input_noise_task_one)}_{str(input_noise_task_two)}_{agent_name}.csv"
+        with open(self.filepath_for_storage, "a") as file:
+            writer = csv.writer(file)
+            writer.writerow(["Mean reward", "Std reward",
+                             "Mean number of collected objects task one", "Std number of collected objects task one",
+                             "Mean number of collected objects task two", "Std number of collected objects task two",
+                             "Mean number of switches", "Std number of switches",
+                             "Mean number of collect task one actions", "Std number of collect task one actions",
+                             "Mean number of collect task two actions", "Std number of collect task two actions",
+                             "Episode rewards",
+                             "Episode number of collected objects task one",
+                             "Episode number of collected objects task two",
+                             "Episode number of switches", "Episode number of collect task one actions",
+                             "Episode number of collect task two actions",
+                             "Episode number of consecutive actions in task one",
+                             "Episode number of consecutive actions in task two",
+                             "Episode objects visible when switching task one",
+                             "Episode objects visible when not switching task one",
+                             "Episode objects visible when switching task two",
+                             "Episode objects visible when not switching task two",
+                             "Episode mean distance to visible objects when switching task one",
+                             "Episode mean distance to visible objects when not switching task one",
+                             "Episode mean distance to visible objects when switching task two",
+                             "Episode mean distance to visible objects when not switching task two",
+                             "Episode true if it was switched"])
         ###
     
     def _on_step(self) -> bool:
@@ -430,7 +485,24 @@ class EvalCallbackMetaAgentNew(EvalCallback):
             self._is_success_buffer = []
             
             ### me: own evaluation function to get number of crashed and collected objects
-            episode_rewards, episode_lengths, episode_number_of_collected_objects_task_one, episode_number_of_collected_objects_task_two, episode_number_of_switches, episode_number_of_task_one_actions, episode_number_of_task_two_actions = evaluate_policy_meta_agent_new(
+            (episode_rewards,
+             episode_lengths,
+             episode_number_of_collected_objects_task_one,
+             episode_number_of_collected_objects_task_two,
+             episode_number_of_switches,
+             episode_number_of_task_one_actions,
+             episode_number_of_task_two_actions,
+             episode_number_of_consecutive_actions_in_task_one,
+             episode_number_of_consecutive_actions_in_task_two,
+             episode_objects_visible_when_switching_task_one,
+             episode_objects_visible_when_not_switching_task_one,
+             episode_objects_visible_when_switching_task_two,
+             episode_objects_visible_when_not_switching_task_two,
+             episode_mean_distance_to_visible_objects_when_switching_task_one,
+             episode_mean_distance_to_visible_objects_when_not_switching_task_one,
+             episode_mean_distance_to_visible_objects_when_switching_task_two,
+             episode_mean_distance_to_visible_objects_when_not_switching_task_two,
+             episode_true_if_it_was_switched) = evaluate_policy_meta_agent_new(
                 self.model,
                 self.eval_env,
                 n_eval_episodes=self.n_eval_episodes,
@@ -452,6 +524,16 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                 assert isinstance(episode_number_of_switches, list)
                 assert isinstance(episode_number_of_task_one_actions, list)
                 assert isinstance(episode_number_of_task_two_actions, list)
+                assert isinstance(episode_number_of_consecutive_actions_in_task_one, list)
+                assert isinstance(episode_number_of_consecutive_actions_in_task_two, list)
+                assert isinstance(episode_objects_visible_when_switching_task_one, list)
+                assert isinstance(episode_objects_visible_when_not_switching_task_one, list)
+                assert isinstance(episode_objects_visible_when_switching_task_two, list)
+                assert isinstance(episode_objects_visible_when_not_switching_task_two, list)
+                assert isinstance(episode_mean_distance_to_visible_objects_when_switching_task_one, list)
+                assert isinstance(episode_mean_distance_to_visible_objects_when_not_switching_task_one, list)
+                assert isinstance(episode_mean_distance_to_visible_objects_when_switching_task_two, list)
+                assert isinstance(episode_mean_distance_to_visible_objects_when_not_switching_task_two, list)
                 ###
                 self.evaluations_timesteps.append(self.num_timesteps)
                 self.evaluations_results.append(episode_rewards)
@@ -464,6 +546,26 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                 self.evaluations_number_of_switches.append(episode_number_of_switches)
                 self.evaluations_number_of_task_one_actions.append(episode_number_of_task_one_actions)
                 self.evaluations_number_of_task_two_actions.append(episode_number_of_task_two_actions)
+                self.evaluations_number_of_consecutive_actions_in_task_one.append(
+                    episode_number_of_consecutive_actions_in_task_one)
+                self.evaluations_number_of_consecutive_actions_in_task_two.append(
+                    episode_number_of_consecutive_actions_in_task_two)
+                self.evaluations_objects_visible_when_switching_task_one.append(
+                    episode_objects_visible_when_switching_task_one)
+                self.evaluations_objects_visible_when_not_switching_task_one.append(
+                    episode_objects_visible_when_not_switching_task_one)
+                self.evaluations_objects_visible_when_switching_task_two.append(
+                    episode_objects_visible_when_switching_task_two)
+                self.evaluations_objects_visible_when_not_switching_task_two.append(
+                    episode_objects_visible_when_not_switching_task_two)
+                self.evaluations_mean_distance_to_visible_objects_when_switching_task_one.append(
+                    episode_mean_distance_to_visible_objects_when_switching_task_one)
+                self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_one.append(
+                    episode_mean_distance_to_visible_objects_when_not_switching_task_one)
+                self.evaluations_mean_distance_to_visible_objects_when_switching_task_two.append(
+                    episode_mean_distance_to_visible_objects_when_switching_task_two)
+                self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_two.append(
+                    episode_mean_distance_to_visible_objects_when_not_switching_task_two)
                 ###
                 
                 kwargs = {}
@@ -483,6 +585,38 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                     number_of_switches=self.evaluations_number_of_switches,
                     number_of_task_one_actions=self.evaluations_number_of_task_one_actions,
                     number_of_task_two_actions=self.evaluations_number_of_task_two_actions,
+                    number_of_consecutive_actions_in_task_one=[np.mean(current_list) for current_list in
+                                                               self.evaluations_number_of_consecutive_actions_in_task_one[
+                                                                   0]],
+                    number_of_consecutive_actions_in_task_two=[np.mean(current_list) for current_list in
+                                                               self.evaluations_number_of_consecutive_actions_in_task_two[
+                                                                   0]],
+                    objects_visible_when_switching_task_one=[np.mean(current_list) for current_list in
+                                                             self.evaluations_objects_visible_when_switching_task_one[
+                                                                 0]],
+                    objects_visible_when_not_switching_task_one=[np.mean(current_list) for current_list in
+                                                                 self.evaluations_objects_visible_when_not_switching_task_one[
+                                                                     0]],
+                    objects_visible_when_switching_task_two=[np.mean(current_list) for current_list in
+                                                             self.evaluations_objects_visible_when_switching_task_two[
+                                                                 0]],
+                    objects_visible_when_not_switching_task_two=[np.mean(current_list) for current_list in
+                                                                 self.evaluations_objects_visible_when_not_switching_task_two[
+                                                                     0]],
+                    mean_distance_to_visible_objects_when_switching_task_one=[np.mean(current_list) for current_list in
+                                                                              self.evaluations_mean_distance_to_visible_objects_when_switching_task_one[
+                                                                                  0]],
+                    mean_distance_to_visible_objects_when_not_switching_task_one=[np.mean(current_list) for current_list
+                                                                                  in
+                                                                                  self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_one[
+                                                                                      0]],
+                    mean_distance_to_visible_objects_when_switching_task_two=[np.mean(current_list) for current_list in
+                                                                              self.evaluations_mean_distance_to_visible_objects_when_switching_task_two[
+                                                                                  0]],
+                    mean_distance_to_visible_objects_when_not_switching_task_two=[np.mean(current_list) for current_list
+                                                                                  in
+                                                                                  self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_two[
+                                                                                      0]],
                     ###
                     **kwargs,  # type: ignore[arg-type]
                 )
@@ -500,6 +634,74 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                 episode_number_of_task_one_actions), np.std(episode_number_of_task_one_actions)
             mean_number_of_task_two_actions, std_number_of_task_two_actions = np.mean(
                 episode_number_of_task_two_actions), np.std(episode_number_of_task_two_actions)
+            mean_episode_number_of_consecutive_actions_in_task_one = [np.mean(number_of_consecutive_actions_in_task_one)
+                                                                      for
+                                                                      number_of_consecutive_actions_in_task_one in
+                                                                      episode_number_of_consecutive_actions_in_task_one]
+            mean_number_of_consecutive_actions_in_task_one, std_number_of_consecutive_actions_in_task_one = np.mean(
+                mean_episode_number_of_consecutive_actions_in_task_one), np.std(
+                mean_episode_number_of_consecutive_actions_in_task_one)
+            mean_episode_number_of_consecutive_actions_in_task_two = [np.mean(number_of_consecutive_actions_in_task_two)
+                                                                      for
+                                                                      number_of_consecutive_actions_in_task_two in
+                                                                      episode_number_of_consecutive_actions_in_task_two]
+            mean_number_of_consecutive_actions_in_task_two, std_number_of_consecutive_actions_in_task_two = np.mean(
+                mean_episode_number_of_consecutive_actions_in_task_two), np.std(
+                mean_episode_number_of_consecutive_actions_in_task_two)
+            mean_episode_objects_visible_when_switching_task_one = [np.mean(objects_visible_when_switching_task_one) for
+                                                                    objects_visible_when_switching_task_one in
+                                                                    episode_objects_visible_when_switching_task_one]
+            mean_objects_visible_when_switching_task_one, std_objects_visible_when_switching_task_one = np.mean(
+                mean_episode_objects_visible_when_switching_task_one), np.std(
+                mean_episode_objects_visible_when_switching_task_one)
+            mean_episode_objects_visible_when_not_switching_task_one = [
+                np.mean(objects_visible_when_not_switching_task_one) for
+                objects_visible_when_not_switching_task_one in
+                episode_objects_visible_when_not_switching_task_one]
+            mean_objects_visible_when_not_switching_task_one, std_objects_visible_when_not_switching_task_one = np.mean(
+                mean_episode_objects_visible_when_not_switching_task_one), np.std(
+                mean_episode_objects_visible_when_not_switching_task_one)
+            mean_episode_objects_visible_when_switching_task_two = [np.mean(objects_visible_when_switching_task_two) for
+                                                                    objects_visible_when_switching_task_two in
+                                                                    episode_objects_visible_when_switching_task_two]
+            mean_objects_visible_when_switching_task_two, std_objects_visible_when_switching_task_two = np.mean(
+                mean_episode_objects_visible_when_switching_task_two), np.std(
+                mean_episode_objects_visible_when_switching_task_two)
+            mean_episode_objects_visible_when_not_switching_task_two = [
+                np.mean(objects_visible_when_not_switching_task_two) for
+                objects_visible_when_not_switching_task_two in
+                episode_objects_visible_when_not_switching_task_two]
+            mean_objects_visible_when_not_switching_task_two, std_objects_visible_when_not_switching_task_two = np.mean(
+                mean_episode_objects_visible_when_not_switching_task_two), np.std(
+                mean_episode_objects_visible_when_not_switching_task_two)
+            mean_episode_mean_distance_to_visible_objects_when_switching_task_one = [np.mean(
+                mean_distance_to_visible_objects_when_switching_task_one) for
+                mean_distance_to_visible_objects_when_switching_task_one in
+                episode_mean_distance_to_visible_objects_when_switching_task_one]
+            mean_mean_distance_to_visible_objects_when_switching_task_one, std_mean_distance_to_visible_objects_when_switching_task_one = np.mean(
+                mean_episode_mean_distance_to_visible_objects_when_switching_task_one), np.std(
+                mean_episode_mean_distance_to_visible_objects_when_switching_task_one)
+            mean_episode_mean_distance_to_visible_objects_when_not_switching_task_one = [np.mean(
+                mean_distance_to_visible_objects_when_not_switching_task_one) for
+                mean_distance_to_visible_objects_when_not_switching_task_one in
+                episode_mean_distance_to_visible_objects_when_not_switching_task_one]
+            mean_mean_distance_to_visible_objects_when_not_switching_task_one, std_mean_distance_to_visible_objects_when_not_switching_task_one = np.mean(
+                mean_episode_mean_distance_to_visible_objects_when_not_switching_task_one), np.std(
+                mean_episode_mean_distance_to_visible_objects_when_not_switching_task_one)
+            mean_episode_mean_distance_to_visible_objects_when_switching_task_two = [np.mean(
+                mean_distance_to_visible_objects_when_switching_task_two) for
+                mean_distance_to_visible_objects_when_switching_task_two in
+                episode_mean_distance_to_visible_objects_when_switching_task_two]
+            mean_mean_distance_to_visible_objects_when_switching_task_two, std_mean_distance_to_visible_objects_when_switching_task_two = np.mean(
+                mean_episode_mean_distance_to_visible_objects_when_switching_task_two), np.std(
+                mean_episode_mean_distance_to_visible_objects_when_switching_task_two)
+            mean_episode_mean_distance_to_visible_objects_when_not_switching_task_two = [np.mean(
+                mean_distance_to_visible_objects_when_not_switching_task_two) for
+                mean_distance_to_visible_objects_when_not_switching_task_two in
+                episode_mean_distance_to_visible_objects_when_not_switching_task_two]
+            mean_mean_distance_to_visible_objects_when_not_switching_task_two, std_mean_distance_to_visible_objects_when_not_switching_task_two = np.mean(
+                mean_episode_mean_distance_to_visible_objects_when_not_switching_task_two), np.std(
+                mean_episode_mean_distance_to_visible_objects_when_not_switching_task_two)
             ###
             self.last_mean_reward = float(mean_reward)
             
@@ -517,6 +719,53 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                     f"Number of task one actions: {mean_number_of_task_one_actions:.2f} +/- {std_number_of_task_one_actions:.2f}")
                 print(
                     f"Number of task two actions: {mean_number_of_task_two_actions:.2f} +/- {std_number_of_task_two_actions:.2f}")
+                print(
+                    f"Mean number of consecutive actions in task one: {mean_number_of_consecutive_actions_in_task_one:.2f} +/- {std_number_of_consecutive_actions_in_task_one:.2f}")
+                print(
+                    f"Mean number of consecutive actions in task two: {mean_number_of_consecutive_actions_in_task_two:.2f} +/- {std_number_of_consecutive_actions_in_task_two:.2f}")
+                print(
+                    f"Mean objects visible when switching task one: {mean_objects_visible_when_switching_task_one:.2f} +/- {std_objects_visible_when_switching_task_one:.2f}")
+                print(
+                    f"Mean objects visible when not switching task one: {mean_objects_visible_when_not_switching_task_one:.2f} +/- {std_objects_visible_when_not_switching_task_one:.2f}")
+                print(
+                    f"Mean objects visible when switching task two: {mean_objects_visible_when_switching_task_two:.2f} +/- {std_objects_visible_when_switching_task_two:.2f}")
+                print(
+                    f"Mean objects visible when not switching task two: {mean_objects_visible_when_not_switching_task_two:.2f} +/- {std_objects_visible_when_not_switching_task_two:.2f}")
+                print(
+                    f"Mean distance to visible objects when switching task one: {mean_mean_distance_to_visible_objects_when_switching_task_one:.2f} +/- {std_mean_distance_to_visible_objects_when_switching_task_one:.2f}")
+                print(
+                    f"Mean distance to visible objects when not switching task one: {mean_mean_distance_to_visible_objects_when_not_switching_task_one:.2f} +/- {std_mean_distance_to_visible_objects_when_not_switching_task_one:.2f}")
+                print(
+                    f"Mean distance to visible objects when switching task two: {mean_mean_distance_to_visible_objects_when_switching_task_two:.2f} +/- {std_mean_distance_to_visible_objects_when_switching_task_two:.2f}")
+                print(
+                    f"Mean distance to visible objects when not switching task two: {mean_mean_distance_to_visible_objects_when_not_switching_task_two:.2f} +/- {std_mean_distance_to_visible_objects_when_not_switching_task_two:.2f}")
+                with open(self.filepath_for_storage, "a") as file:
+                    writer = csv.writer(file)
+                    writer.writerow(
+                        [mean_reward, std_reward,
+                         mean_number_of_collected_objects_task_one, std_number_of_collected_objects_task_one,
+                         mean_number_of_collected_objects_task_two, std_number_of_collected_objects_task_two,
+                         mean_number_of_switches, std_number_of_switches,
+                         mean_number_of_task_one_actions, std_number_of_task_one_actions,
+                         mean_number_of_task_two_actions, std_number_of_task_two_actions,
+                         episode_rewards,
+                         episode_number_of_collected_objects_task_one,
+                         episode_number_of_collected_objects_task_two,
+                         episode_number_of_switches,
+                         episode_number_of_task_one_actions,
+                         episode_number_of_task_two_actions,
+                         episode_number_of_consecutive_actions_in_task_one,
+                         episode_number_of_consecutive_actions_in_task_two,
+                         episode_objects_visible_when_switching_task_one,
+                         episode_objects_visible_when_not_switching_task_one,
+                         episode_objects_visible_when_switching_task_two,
+                         episode_objects_visible_when_not_switching_task_two,
+                         episode_mean_distance_to_visible_objects_when_switching_task_one,
+                         episode_mean_distance_to_visible_objects_when_not_switching_task_one,
+                         episode_mean_distance_to_visible_objects_when_switching_task_two,
+                         episode_mean_distance_to_visible_objects_when_not_switching_task_two,
+                         episode_true_if_it_was_switched
+                         ])
                 ###
             # Add to current Logger
             self.logger.record("eval/mean_reward", float(mean_reward))
