@@ -429,10 +429,15 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                                   "config_file_name_collect_task_one"][-9:-5]
         difficulty_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
                                   "config_file_name_collect_task_two"][-9:-5]
-        input_noise_task_one = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
-            "input_noise_in_subtasks_one"]
-        input_noise_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
-            "input_noise_in_subtasks_two"]
+        
+        input_noise_task_one = ""
+        input_noise_task_two = ""
+        if "input_noise_in_subtasks_one" in eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs:
+            input_noise_task_one = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
+                "input_noise_in_subtasks_one"]
+        if "input_noise_in_subtasks_two" in eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs:
+            input_noise_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
+                "input_noise_in_subtasks_two"]
         agent_name = "world_state"
         if isinstance(eval_env.envs[0], SoCObsAndRewardWrapperEnv):
             agent_name = "SoCObsAndRewardWrapperEnv"
