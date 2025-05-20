@@ -13,6 +13,7 @@ from src.utils.custom_evaluation import evaluate_policy_meta_agent as custom_eva
 from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
 from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
 from src.custom_envs.moonlander.meta_env_pretrained_with_soc_observation_only_wrapper import SoCObsOnlyWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_switching_boost import SwitchingBoostWrapperEnv
 
 
 class EarlyStopCallback(BaseCallback):
@@ -432,13 +433,17 @@ class EvalCallbackMetaAgentNew(EvalCallback):
             "input_noise_in_subtasks_one"]
         input_noise_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
             "input_noise_in_subtasks_two"]
-        agent_name = ""
+        agent_name = "world_state"
         if isinstance(eval_env.envs[0], SoCObsAndRewardWrapperEnv):
             agent_name = "SoCObsAndRewardWrapperEnv"
         elif isinstance(eval_env.envs[0], SoCObsOnlyWrapperEnv):
             agent_name = "SoCObsOnlyWrapperEnv"
         elif isinstance(eval_env.envs[0], SoCRewardOnlyWrapperEnv):
             agent_name = "SoCRewardOnlyWrapperEnv"
+        elif isinstance(eval_env.envs[0], SwitchingBoostWrapperEnv):
+            agent_name = "SwitchingBoostWrapperEnv"
+        if eval_env.env_method("get_wrapper_attr", "env")[0].env.normalize_rewards:
+            agent_name += "_normalized_rewards"
         self.filepath_for_storage = ROOT_DIR / f"logs/collect_{difficulty_task_one}_{difficulty_task_two}_{str(input_noise_task_one)}_{str(input_noise_task_two)}_{agent_name}.csv"
         with open(self.filepath_for_storage, "a") as file:
             writer = csv.writer(file)
