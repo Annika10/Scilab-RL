@@ -354,8 +354,10 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         
         # reset the envs
         # only one return value because DummyVecEnv only returns one observation
-        self.state_of_collect_task_one = self.trained_collect_task_one.env.reset()
-        self.state_of_collect_task_two = self.trained_collect_task_two.env.reset()
+        # sub-agents are automatically reset in vectorized envs when doing the last step
+        # remove reset there because otherwise, we don't have the 100 test episodes
+        # self.state_of_collect_task_one = self.trained_collect_task_one.env.reset()
+        # self.state_of_collect_task_two = self.trained_collect_task_two.env.reset()
         
         # set state
         self.state = np.concatenate((self.state_of_collect_task_one, self.state_of_collect_task_two), axis=0).flatten()
