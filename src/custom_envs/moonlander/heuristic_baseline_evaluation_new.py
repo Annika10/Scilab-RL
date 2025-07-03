@@ -679,8 +679,7 @@ if __name__ == "__main__":
                 n_eval_episodes=n_eval_episodes)
             _, _ = evaluate_policy(
                 env=env,
-                # I don't know why, but it is the same in the standard evaluate_policy used by the framework
-                n_eval_episodes=n_eval_episodes / 2,
+                n_eval_episodes=n_eval_episodes,
                 deterministic=True,
                 render=render,
                 return_episode_rewards=False,
@@ -702,8 +701,7 @@ if __name__ == "__main__":
         
         _, _ = evaluate_policy(
             env=env,
-            # I don't know why, but it is the same in the standard evaluate_policy used by the framework
-            n_eval_episodes=n_eval_episodes / 2,
+            n_eval_episodes=n_eval_episodes,
             deterministic=True,
             render=render,
             return_episode_rewards=False,
@@ -723,8 +721,7 @@ if __name__ == "__main__":
         
         _, _ = evaluate_policy(
             env=env,
-            # I don't know why, but it is the same in the standard evaluate_policy used by the framework
-            n_eval_episodes=n_eval_episodes / 2,
+            n_eval_episodes=n_eval_episodes,
             deterministic=True,
             render=render,
             return_episode_rewards=False,
