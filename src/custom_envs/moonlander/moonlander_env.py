@@ -891,6 +891,7 @@ class MoonlanderWorldEnv(Env):
             rnd.seed(seed)
         # logging.info("reset " + self.current_time + str(self.episode_counter))
         self.episode_counter += 1
+        print("self.episode_counter", self.episode_counter)
         self.step_counter = 0
         
         agent_config = self.config["agent"]

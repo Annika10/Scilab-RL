@@ -429,6 +429,10 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                                   "config_file_name_collect_task_one"][-9:-5]
         difficulty_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
                                   "config_file_name_collect_task_two"][-9:-5]
+        # difficulty_task_one = eval_env.env_method("get_wrapper_attr", "env")[
+        #                           0].env.env.env.env.env.spec.kwargs["config_file_name_collect_task_one"][-9:-5]
+        # difficulty_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.env.env.env.env.spec.kwargs[
+        #                           "config_file_name_collect_task_two"][-9:-5]
         
         input_noise_task_one = ""
         input_noise_task_two = ""
@@ -438,6 +442,14 @@ class EvalCallbackMetaAgentNew(EvalCallback):
         if "input_noise_in_subtasks_two" in eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs:
             input_noise_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
                 "input_noise_in_subtasks_two"]
+        # if "input_noise_in_subtasks_one" in eval_env.env_method("get_wrapper_attr", "env")[
+        #     0].env.env.env.env.env.spec.kwargs:
+        #     input_noise_task_one = eval_env.env_method("get_wrapper_attr", "env")[0].env.env.env.env.env.spec.kwargs[
+        #         "input_noise_in_subtasks_one"]
+        # if "input_noise_in_subtasks_two" in eval_env.env_method("get_wrapper_attr", "env")[
+        #     0].env.env.env.env.env.spec.kwargs:
+        #     input_noise_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.env.env.env.env.spec.kwargs[
+        #         "input_noise_in_subtasks_two"]
         agent_name = "world_state"
         if isinstance(eval_env.envs[0], SoCObsAndRewardWrapperEnv):
             agent_name = "SoCObsAndRewardWrapperEnv"
@@ -449,6 +461,8 @@ class EvalCallbackMetaAgentNew(EvalCallback):
             agent_name = "SwitchingBoostWrapperEnv"
         if eval_env.env_method("get_wrapper_attr", "env")[0].env.normalize_rewards:
             agent_name += "_normalized_rewards"
+        # if eval_env.env_method("get_wrapper_attr", "env")[0].env.env.env.env.env.normalize_rewards:
+        #     agent_name += "_normalized_rewards"
         self.filepath_for_storage = ROOT_DIR / f"logs/collect_{difficulty_task_one}_{difficulty_task_two}_{str(input_noise_task_one)}_{str(input_noise_task_two)}_{agent_name}.csv"
         with open(self.filepath_for_storage, "a") as file:
             writer = csv.writer(file)

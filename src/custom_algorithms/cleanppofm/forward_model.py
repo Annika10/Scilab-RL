@@ -88,6 +88,7 @@ class ProbabilisticForwardNetPositionPredictionIncludingReward(nn.Module):
             nn.Linear(self.old_position_shape + self.action_shape, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
+            # nn.Linear(hidden_size, self.old_position_shape + 1),
         )
         # obs_shape: int64
         # add one for reward
@@ -95,12 +96,13 @@ class ProbabilisticForwardNetPositionPredictionIncludingReward(nn.Module):
         self.fw_std = nn.Linear(hidden_size, self.old_position_shape + 1)
 
     def forward(self, old_position, action):
-        # foward model: p(w' | w, a)
+        # forward model: p(w' | w, a)
         hx = torch.cat([old_position.to(device), action.to(device)], dim=-1)
         hx = self.state_action_encoder(hx)
         hx = F.relu(hx)
         fw_mu, fw_log_std = self.fw_mu(hx), self.fw_std(hx)
         fw_log_std = torch.clamp(fw_log_std, LOG_STD_MIN, LOG_STD_MAX)
+        # return hx
         return Normal(fw_mu, fw_log_std.exp())
 
 
@@ -124,6 +126,34 @@ class ProbabilisticForwardNetPositionPrediction(nn.Module):
     def forward(self, old_position, action):
         # foward model: p(w' | w, a)
         hx = torch.cat([old_position, action], dim=-1)
+        hx = self.state_action_encoder(hx)
+        hx = F.relu(hx)
+        fw_mu, fw_log_std = self.fw_mu(hx), self.fw_std(hx)
+        fw_log_std = torch.clamp(fw_log_std, LOG_STD_MIN, LOG_STD_MAX)
+        return Normal(fw_mu, fw_log_std.exp())
+
+
+class ProbabilisticForwardNetOnePositionPrediction(nn.Module):
+    def __init__(self, env, cfg):
+        super().__init__()
+        hidden_size = cfg["hidden_size"]
+        # 1 position for the x coordinate of the agent
+        self.position_shape = 1
+        self.action_shape = int(np.prod(env.action_space.shape))
+
+        self.state_action_encoder = nn.Sequential(
+            nn.Linear(self.position_shape + self.action_shape, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+        )
+        # obs_shape: int64
+        # add one for reward
+        self.fw_mu = nn.Linear(hidden_size, self.position_shape)
+        self.fw_std = nn.Linear(hidden_size, self.position_shape)
+
+    def forward(self, old_position, action):
+        # forward model: p(w' | w, a)
+        hx = torch.cat([old_position.to(device), action.to(device)], dim=-1)
         hx = self.state_action_encoder(hx)
         hx = F.relu(hx)
         fw_mu, fw_log_std = self.fw_mu(hx), self.fw_std(hx)

@@ -1,8 +1,7 @@
 import torch
-from src.custom_algorithms.cleanppofm.forward_model import ProbabilisticForwardNetPositionPredictionIncludingReward
+from src.custom_algorithms.cleanppofm.forward_model import ProbabilisticForwardNetOnePositionPrediction
 import gymnasium as gym
 from src.custom_envs.register_envs import register_custom_envs
-from src.custom_envs.moonlander.utils import get_next_position_observation_moonlander
 
 observations = torch.tensor([[19., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                               0., 0., 0., 0., 0., 0., 0., 0.],
@@ -141,104 +140,60 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 env = gym.make('MoonlanderWorld-dodge-gaussian-v0', reward_function="gaussian")
 env.reset()
 
-fm_network = ProbabilisticForwardNetPositionPredictionIncludingReward(env, fm_parameters,
-                                                                      maximum_number_of_objects=maximum_number_of_objects).to(
-    device)
+fm_network = ProbabilisticForwardNetOnePositionPrediction(env, fm_parameters).to(device)
 
-cleanppofm_model = torch.load(
-    '/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/policies/collect_human_27_09_rl_model_best',
-    # '/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/policies/collect_best_fm_23_08_rl_model_best'
-    map_location=torch.device(device))
-fm_network.load_state_dict(cleanppofm_model["_fm"])
-# fm_network.load_state_dict(torch.load(
-#     '/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/src/best_model_1',
-#     map_location=torch.device(device)))
+# cleanppofm_model = torch.load(
+#     '/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/policies/collect_human_27_09_rl_model_best',
+#     # '/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/policies/collect_best_fm_23_08_rl_model_best'
+#     map_location=torch.device(device))
+# fm_network.load_state_dict(cleanppofm_model["_fm"])
+fm_network.load_state_dict(torch.load(
+    '/home/annika/coding_projects/Scilab-RL-github/Scilab-RL/src/best_model',
+    map_location=torch.device(device)))
 fm_network.eval()
 
-predicted_right_positions_action_0 = 0
-predicted_right_positions_action_0_without_zero_objects = 0
-predicted_right_positions_action_1 = 0
-predicted_right_positions_action_1_without_zero_objects = 0
-predicted_right_positions_action_2 = 0
-predicted_right_positions_action_2_without_zero_objects = 0
-overall_number_of_positions_action_0_without_zero_objects = 0
-overall_number_of_positions_action_1_without_zero_objects = 0
-overall_number_of_positions_action_2_without_zero_objects = 0
-overall_number_of_positions = torch.prod(torch.tensor(observations.shape)).item()
+predicted_right_action_0 = 0
+predicted_right_action_1 = 0
+predicted_right_action_2 = 0
 
 for index, element in enumerate(observations):
-    active_belief_state_normal_distribution_action_0 = fm_network(element.unsqueeze(0),
+    active_belief_state_normal_distribution_action_0 = fm_network(element[0:1].unsqueeze(0),
                                                                   torch.tensor([[0]]).float())
-    active_belief_state_normal_distribution_action_1 = fm_network(element.unsqueeze(0),
+    active_belief_state_normal_distribution_action_1 = fm_network(element[0:1].unsqueeze(0),
                                                                   torch.tensor([[1]]).float())
-    active_belief_state_normal_distribution_action_2 = fm_network(element.unsqueeze(0),
+    active_belief_state_normal_distribution_action_2 = fm_network(element[0:1].unsqueeze(0),
                                                                   torch.tensor([[2]]).float())
-    gold_label = get_next_position_observation_moonlander(observations=element.repeat(3, 1),
-                                                          actions=torch.tensor([0, 1, 2]),
-                                                          observation_width=40,
-                                                          observation_height=30, agent_size=2,
-                                                          maximum_number_of_objects=maximum_number_of_objects)
-    
-    for j, object_position in enumerate(gold_label[0]):
-        if object_position != 0:
-            overall_number_of_positions_action_0_without_zero_objects += 1
-            if object_position == torch.round(active_belief_state_normal_distribution_action_0.mean[0, j]):
-                predicted_right_positions_action_0_without_zero_objects += 1
-    for j, object_position in enumerate(gold_label[1]):
-        if object_position != 0:
-            overall_number_of_positions_action_1_without_zero_objects += 1
-            if object_position == torch.round(active_belief_state_normal_distribution_action_1.mean[0, j]):
-                predicted_right_positions_action_1_without_zero_objects += 1
-    for j, object_position in enumerate(gold_label[2]):
-        if object_position != 0:
-            overall_number_of_positions_action_2_without_zero_objects += 1
-            if object_position == torch.round(active_belief_state_normal_distribution_action_2.mean[0, j]):
-                predicted_right_positions_action_2_without_zero_objects += 1
-    
-    print(
-        f"action 0: "
-        f"predicted {gold_label[0].unsqueeze(0) == torch.round(active_belief_state_normal_distribution_action_0.mean[:, :-1])} "
-        f"because the actual positions is {gold_label[0]} "
-        f"and the predicted positions is {torch.round(active_belief_state_normal_distribution_action_0.mean[:, :-1])}")
-    print(
-        f"action 1: "
-        f"predicted {gold_label[1] == torch.round(active_belief_state_normal_distribution_action_1.mean[:, :-1])} "
-        f"because the actual positions is {gold_label[1]} "
-        f"and the predicted positions is {torch.round(active_belief_state_normal_distribution_action_1.mean[:, :-1])}")
-    print(
-        f"action 2: "
-        f"predicted {gold_label[2] == torch.round(active_belief_state_normal_distribution_action_2.mean[:, :-1])} "
-        f"because the actual positions is {gold_label[2]} "
-        f"and the predicted positions is {torch.round(active_belief_state_normal_distribution_action_2.mean[:, :-1])}")
-    
-    predicted_right_positions_action_0 += torch.count_nonzero(
-        gold_label[0].unsqueeze(0) == torch.round(active_belief_state_normal_distribution_action_0.mean[:, :-1])).item()
-    predicted_right_positions_action_1 += torch.count_nonzero(
-        gold_label[1].unsqueeze(0) == torch.round(active_belief_state_normal_distribution_action_1.mean[:, :-1])).item()
-    predicted_right_positions_action_2 += torch.count_nonzero(
-        gold_label[2].unsqueeze(0) == torch.round(active_belief_state_normal_distribution_action_2.mean[:, :-1])).item()
+    for index_1, object_position in enumerate(element[0:1]):
+        print("object_position", object_position)
+        print(
+            f"action 0: "
+            f"predicted {(object_position - 1) == (torch.round(active_belief_state_normal_distribution_action_0.mean[0][index_1])).item()} "
+            f"because the actual position is {object_position - 1} "
+            f"and the predicted position is {torch.round(active_belief_state_normal_distribution_action_0.mean[0][index_1])}")
+        print(
+            f"action 1: "
+            f"predicted {(object_position == torch.round(active_belief_state_normal_distribution_action_1.mean[0][index_1])).item()} "
+            f"because the actual position is {object_position} "
+            f"and the predicted position is {torch.round(active_belief_state_normal_distribution_action_1.mean[0][index_1])}")
+        print(
+            f"action 2: "
+            f"predicted {(object_position + 1) == (torch.round(active_belief_state_normal_distribution_action_2.mean[0][index_1])).item()} "
+            f"because the actual position is {object_position + 1} "
+            f"and the predicted position is {torch.round(active_belief_state_normal_distribution_action_2.mean[0][index_1])}")
+        
+        if (object_position - 1) == torch.round(active_belief_state_normal_distribution_action_0.mean[0][index_1]):
+            predicted_right_action_0 += 1
+        if object_position == torch.round(active_belief_state_normal_distribution_action_1.mean[0][index_1]):
+            predicted_right_action_1 += 1
+        if (object_position + 1) == torch.round(active_belief_state_normal_distribution_action_2.mean[0][index_1]):
+            predicted_right_action_2 += 1
 
 print(
-    f"Action 0: having predicted right {predicted_right_positions_action_0} out of {overall_number_of_positions} "
-    f"resolves in an accuracy of {predicted_right_positions_action_0 / overall_number_of_positions}")
+    f"Action 0: having predicted right {predicted_right_action_0} out of {len(observations)} "
+    f"resolves in an accuracy of {predicted_right_action_0 / (len(observations))}")
 print(
-    f"Action 0 - without zero objects: having predicted right {predicted_right_positions_action_0_without_zero_objects} "
-    f"out of {overall_number_of_positions_action_0_without_zero_objects} "
-    f"resolves in an accuracy of "
-    f"{predicted_right_positions_action_0_without_zero_objects / overall_number_of_positions_action_0_without_zero_objects}")
+    f"Action 1: having predicted right {predicted_right_action_1} out of {len(observations)} "
+    f"resolves in an accuracy of {predicted_right_action_1 / (len(observations))}")
 print(
-    f"Action 1: having predicted right {predicted_right_positions_action_1} out of {overall_number_of_positions} "
-    f"resolves in an accuracy of {predicted_right_positions_action_1 / overall_number_of_positions}")
-print(
-    f"Action 1 - without zero objects: having predicted right {predicted_right_positions_action_1_without_zero_objects} "
-    f"out of {overall_number_of_positions_action_1_without_zero_objects} "
-    f"resolves in an accuracy of "
-    f"{predicted_right_positions_action_1_without_zero_objects / overall_number_of_positions_action_1_without_zero_objects}")
-print(
-    f"Action 2: having predicted right {predicted_right_positions_action_2} out of {overall_number_of_positions} "
-    f"resolves in an accuracy of {predicted_right_positions_action_2 / overall_number_of_positions}")
-print(
-    f"Action 2 - without zero objects: having predicted right {predicted_right_positions_action_2_without_zero_objects} "
-    f"out of {overall_number_of_positions_action_2_without_zero_objects} "
-    f"resolves in an accuracy of "
-    f"{predicted_right_positions_action_2_without_zero_objects / overall_number_of_positions_action_2_without_zero_objects}")
+    f"Action 2: having predicted right {predicted_right_action_2} out of {len(observations)} "
+    f"resolves in an accuracy of {predicted_right_action_2 / (len(observations))}")

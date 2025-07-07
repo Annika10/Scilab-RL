@@ -1,7 +1,7 @@
 import csv
 import ast
 from scipy import stats
-from custom_envs import ROOT_DIR
+from src.custom_envs import ROOT_DIR
 
 collect_task_one_best_model_name = "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model"
 collect_task_two_best_model_name = "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model"
@@ -9,7 +9,7 @@ collect_task_two_best_model_name = "collect_gaussian_with_distance_hard_position
 directory = ROOT_DIR / "logs"
 
 soc_switching_filepath_for_storage = directory / f"{collect_task_one_best_model_name}_{collect_task_two_best_model_name}_soc_switching.csv"
-percentage_switching_filepath_for_storage = directory / f"{collect_task_one_best_model_name}_{collect_task_two_best_model_name}_percentage_pairs.csv"
+percentage_switching_filepath_fors_storage = directory / f"{collect_task_one_best_model_name}_{collect_task_two_best_model_name}_percentage_pairs.csv"
 
 # load episode collected objects
 with open(soc_switching_filepath_for_storage, "r") as file:
