@@ -1,12 +1,20 @@
 import os
 import mlflow
+import gymnasium as gym
 import numpy as np
-from typing import Dict, Any
-
+import csv
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.vec_env import sync_envs_normalization
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from stable_baselines3.common.vec_env import sync_envs_normalization, VecEnv
+from typing import Any, Dict, Optional, Union
+from src.custom_envs import ROOT_DIR
+from src.utils.custom_evaluation import evaluate_policy_moonlander, evaluate_policy_meta_agent_new
+from src.utils.custom_evaluation import evaluate_policy_meta_agent as custom_evaluate_policy_meta_agent
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_observation_only_wrapper import SoCObsOnlyWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_switching_boost import SwitchingBoostWrapperEnv
+
 
 class EarlyStopCallback(BaseCallback):
     """
@@ -18,7 +26,7 @@ class EarlyStopCallback(BaseCallback):
     param threshold: The early-stopping-threshold for the metric-average value.
     param n_episodes: The number of episodes over which to average the metric.
     """
-
+    
     def __init__(
             self,
             metric: str = 'eval/success_rate',
@@ -31,14 +39,14 @@ class EarlyStopCallback(BaseCallback):
         self.eval_freq = eval_freq
         self.threshold = threshold
         self.n_episodes = n_episodes
-
+    
     def _on_step(self) -> bool:
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
             client = mlflow.tracking.MlflowClient()
             hist = client.get_metric_history(mlflow.active_run().info.run_id, self.metric)
             data_val_hist = [h.value for h in hist]
             if len(data_val_hist) >= self.n_episodes:
-                avg = sum(data_val_hist[-self.n_episodes:])/self.n_episodes
+                avg = sum(data_val_hist[-self.n_episodes:]) / self.n_episodes
                 if avg >= self.threshold:
                     self.logger.info(f"Early stop threshold for {self.metric} met: "
                                      f"Average over last {self.n_episodes} evaluations is {avg} "
@@ -73,7 +81,7 @@ class EvalCallback(EvalCallback):
     :param warn: Passed to ``evaluate_policy`` (warns if ``eval_env`` has not been
         wrapped with a Monitor wrapper)
     """
-
+    
     def _log_data_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
         """
         Callback passed to the  ``evaluate_policy`` function
@@ -95,16 +103,16 @@ class EvalCallback(EvalCallback):
         if 'rewards' in locals_.keys():
             reward = float(locals_['rewards'][0])
             self.logger.record('eval/rollout_rewards_step', reward)
-
+    
     def _on_step(self) -> bool:
-
+        
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
             # Sync training and eval env if there is VecNormalize
             sync_envs_normalization(self.training_env, self.eval_env)
-
+            
             # Reset success rate buffer
             self._is_success_buffer = []
-
+            
             episode_rewards, episode_lengths = evaluate_policy(
                 self.model,
                 self.eval_env,
@@ -115,18 +123,18 @@ class EvalCallback(EvalCallback):
                 warn=self.warn,
                 callback=self._log_data_callback,
             )
-
+            
             if self.log_path is not None:
                 self.evaluations_timesteps.append(self.num_timesteps)
                 self.evaluations_results.append(episode_rewards)
                 self.evaluations_length.append(episode_lengths)
-
+                
                 kwargs = {}
                 # Save success log if present
                 if len(self._is_success_buffer) > 0:
                     self.evaluations_successes.append(self._is_success_buffer)
                     kwargs = dict(successes=self.evaluations_successes)
-
+                
                 np.savez(
                     self.log_path,
                     timesteps=self.evaluations_timesteps,
@@ -134,28 +142,29 @@ class EvalCallback(EvalCallback):
                     ep_lengths=self.evaluations_length,
                     **kwargs,
                 )
-
+            
             mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
             mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
             self.last_mean_reward = mean_reward
-
+            
             if self.verbose > 0:
-                print(f"Eval num_timesteps={self.num_timesteps}, " f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
+                print(
+                    f"Eval num_timesteps={self.num_timesteps}, " f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
                 print(f"Episode length: {mean_ep_length:.2f} +/- {std_ep_length:.2f}")
             # Add to current Logger
             self.logger.record("eval/mean_reward", float(mean_reward))
             self.logger.record("eval/mean_ep_length", mean_ep_length)
-
+            
             if len(self._is_success_buffer) > 0:
                 success_rate = np.mean(self._is_success_buffer)
                 if self.verbose > 0:
                     print(f"Success rate: {100 * success_rate:.2f}%")
                 self.logger.record("eval/success_rate", success_rate)
-
+            
             # Dump log so the evaluation results are printed with the correct timestep
             self.logger.record("time/total timesteps", self.num_timesteps, exclude="tensorboard")
             self.logger.dump(self.num_timesteps)
-
+            
             if mean_reward > self.best_mean_reward:
                 if self.verbose > 0:
                     print("New best mean reward!")
@@ -165,9 +174,9 @@ class EvalCallback(EvalCallback):
                 # Trigger callback if needed
                 if self.callback is not None:
                     return self._on_event()
-
+        
         return True
-
+    
     def _log_success_callback(self, locals_: Dict[str, Any], globals_: Dict[str, Any]) -> None:
         """
         Callback passed to the  ``evaluate_policy`` function
@@ -178,7 +187,7 @@ class EvalCallback(EvalCallback):
         :param globals_:
         """
         info = locals_["info"]
-
+        
         if locals_["done"]:
             maybe_is_success = info.get("is_success")
             if maybe_is_success is not None:
@@ -187,3 +196,755 @@ class EvalCallback(EvalCallback):
             maybe_success = info.get("success")
             if maybe_success is not None:
                 self._is_success_buffer.append(maybe_success)
+
+
+class EvalCallbackMoonlander(EvalCallback):
+    """
+    Callback for evaluating an agent.
+
+    .. warning::
+
+      When using multiple environments, each call to  ``env.step()``
+      will effectively correspond to ``n_envs`` steps.
+      To account for that, you can use ``eval_freq = max(eval_freq // n_envs, 1)``
+
+    :param eval_env: The environment used for initialization
+    :param callback_on_new_best: Callback to trigger
+        when there is a new best model according to the ``mean_reward``
+    :param callback_after_eval: Callback to trigger after every evaluation
+    :param n_eval_episodes: The number of episodes to test the agent
+    :param eval_freq: Evaluate the agent every ``eval_freq`` call of the callback.
+    :param log_path: Path to a folder where the evaluations (``evaluations.npz``)
+        will be saved. It will be updated at each evaluation.
+    :param best_model_save_path: Path to a folder where the best model
+        according to performance on the eval env will be saved.
+    :param deterministic: Whether the evaluation should
+        use a stochastic or deterministic actions.
+    :param render: Whether to render or not the environment during evaluation
+    :param verbose: Verbosity level: 0 for no output, 1 for indicating information about evaluation results
+    :param warn: Passed to ``evaluate_policy`` (warns if ``eval_env`` has not been
+        wrapped with a Monitor wrapper)
+    """
+    
+    def __init__(
+            self,
+            eval_env: Union[gym.Env, VecEnv],
+            callback_on_new_best: Optional[BaseCallback] = None,
+            callback_after_eval: Optional[BaseCallback] = None,
+            n_eval_episodes: int = 5,
+            eval_freq: int = 10000,
+            log_path: Optional[str] = None,
+            best_model_save_path: Optional[str] = None,
+            deterministic: bool = True,
+            render: bool = False,
+            verbose: int = 1,
+            warn: bool = True,
+    ):
+        super().__init__(eval_env=eval_env, callback_on_new_best=callback_on_new_best,
+                         callback_after_eval=callback_after_eval, n_eval_episodes=n_eval_episodes,
+                         eval_freq=eval_freq, log_path=log_path, best_model_save_path=best_model_save_path,
+                         deterministic=deterministic, render=render, verbose=verbose, warn=warn)
+        ### added by me
+        self.evaluations_number_of_crashed_or_collected_objects: list[list[int]] = []
+        ###
+    
+    def _on_step(self) -> bool:
+        continue_training = True
+        
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            # Sync training and eval env if there is VecNormalize
+            if self.model.get_vec_normalize_env() is not None:
+                try:
+                    sync_envs_normalization(self.training_env, self.eval_env)
+                except AttributeError as e:
+                    raise AssertionError(
+                        "Training and eval env are not wrapped the same way, "
+                        "see https://stable-baselines3.readthedocs.io/en/master/guide/callbacks.html#evalcallback "
+                        "and warning above."
+                    ) from e
+            
+            # Reset success rate buffer
+            self._is_success_buffer = []
+            
+            ### me: own evaluation function to get number of crashed and collected objects
+            episode_rewards, episode_lengths, episode_number_of_crashed_or_collected_objects = evaluate_policy_moonlander(
+                self.model,
+                self.eval_env,
+                n_eval_episodes=self.n_eval_episodes,
+                render=self.render,
+                deterministic=self.deterministic,
+                return_episode_rewards=True,
+                warn=self.warn,
+                callback=self._log_success_callback,
+            )
+            ###
+            
+            if self.log_path is not None:
+                assert isinstance(episode_rewards, list)
+                assert isinstance(episode_lengths, list)
+                ### added by me
+                assert isinstance(episode_number_of_crashed_or_collected_objects, list)
+                ###
+                self.evaluations_timesteps.append(self.num_timesteps)
+                self.evaluations_results.append(episode_rewards)
+                self.evaluations_length.append(episode_lengths)
+                ### added by me
+                self.evaluations_number_of_crashed_or_collected_objects.append(
+                    episode_number_of_crashed_or_collected_objects)
+                ###
+                
+                kwargs = {}
+                # Save success log if present
+                if len(self._is_success_buffer) > 0:
+                    self.evaluations_successes.append(self._is_success_buffer)
+                    kwargs = dict(successes=self.evaluations_successes)
+                
+                np.savez(
+                    self.log_path,
+                    timesteps=self.evaluations_timesteps,
+                    results=self.evaluations_results,
+                    ep_lengths=self.evaluations_length,
+                    ### added by me
+                    number_of_crashed_or_collected_objects=self.evaluations_number_of_crashed_or_collected_objects,
+                    ###
+                    **kwargs,  # type: ignore[arg-type]
+                )
+            
+            mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
+            mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
+            ### added by me
+            mean_number_of_crashed_or_collected_objects, std_number_of_crashed_or_collected_objects = np.mean(
+                episode_number_of_crashed_or_collected_objects), np.std(episode_number_of_crashed_or_collected_objects)
+            ###
+            self.last_mean_reward = float(mean_reward)
+            
+            if self.verbose >= 1:
+                print(
+                    f"Eval num_timesteps={self.num_timesteps}, " f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
+                print(f"Episode length: {mean_ep_length:.2f} +/- {std_ep_length:.2f}")
+                ### added by me
+                print(
+                    f"Number of crashed or collected objects: {mean_number_of_crashed_or_collected_objects:.2f} +/- {std_number_of_crashed_or_collected_objects:.2f}")
+                ###
+            # Add to current Logger
+            self.logger.record("eval/mean_reward", float(mean_reward))
+            self.logger.record("eval/mean_ep_length", mean_ep_length)
+            ### added by me
+            self.logger.record("eval/mean_number_of_crashed_or_collected_objects",
+                               mean_number_of_crashed_or_collected_objects)
+            ###
+            
+            if len(self._is_success_buffer) > 0:
+                success_rate = np.mean(self._is_success_buffer)
+                if self.verbose >= 1:
+                    print(f"Success rate: {100 * success_rate:.2f}%")
+                self.logger.record("eval/success_rate", success_rate)
+            
+            # Dump log so the evaluation results are printed with the correct timestep
+            self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
+            self.logger.dump(self.num_timesteps)
+            
+            if mean_reward > self.best_mean_reward:
+                if self.verbose >= 1:
+                    print("New best mean reward!")
+                if self.best_model_save_path is not None:
+                    self.model.save(os.path.join(self.best_model_save_path, "best_model"))
+                self.best_mean_reward = float(mean_reward)
+                # Trigger callback on new best model, if needed
+                if self.callback_on_new_best is not None:
+                    continue_training = self.callback_on_new_best.on_step()
+            
+            # Trigger callback after every evaluation, if needed
+            if self.callback is not None:
+                continue_training = continue_training and self._on_event()
+        
+        return continue_training
+
+
+class EvalCallbackMetaAgentNew(EvalCallback):
+    """
+    Callback for evaluating an agent.
+
+    .. warning::
+
+      When using multiple environments, each call to  ``env.step()``
+      will effectively correspond to ``n_envs`` steps.
+      To account for that, you can use ``eval_freq = max(eval_freq // n_envs, 1)``
+
+    :param eval_env: The environment used for initialization
+    :param callback_on_new_best: Callback to trigger
+        when there is a new best model according to the ``mean_reward``
+    :param callback_after_eval: Callback to trigger after every evaluation
+    :param n_eval_episodes: The number of episodes to test the agent
+    :param eval_freq: Evaluate the agent every ``eval_freq`` call of the callback.
+    :param log_path: Path to a folder where the evaluations (``evaluations.npz``)
+        will be saved. It will be updated at each evaluation.
+    :param best_model_save_path: Path to a folder where the best model
+        according to performance on the eval env will be saved.
+    :param deterministic: Whether the evaluation should
+        use a stochastic or deterministic actions.
+    :param render: Whether to render or not the environment during evaluation
+    :param verbose: Verbosity level: 0 for no output, 1 for indicating information about evaluation results
+    :param warn: Passed to ``evaluate_policy`` (warns if ``eval_env`` has not been
+        wrapped with a Monitor wrapper)
+    """
+    
+    def __init__(
+            self,
+            eval_env: Union[gym.Env, VecEnv],
+            callback_on_new_best: Optional[BaseCallback] = None,
+            callback_after_eval: Optional[BaseCallback] = None,
+            n_eval_episodes: int = 5,
+            eval_freq: int = 10000,
+            log_path: Optional[str] = None,
+            best_model_save_path: Optional[str] = None,
+            deterministic: bool = True,
+            render: bool = False,
+            verbose: int = 1,
+            warn: bool = True,
+    ):
+        super().__init__(eval_env=eval_env, callback_on_new_best=callback_on_new_best,
+                         callback_after_eval=callback_after_eval, n_eval_episodes=n_eval_episodes,
+                         eval_freq=eval_freq, log_path=log_path, best_model_save_path=best_model_save_path,
+                         deterministic=deterministic, render=render, verbose=verbose, warn=warn)
+        ### added by me
+        self.evaluations_number_of_collected_objects_task_one: list[list[int]] = []
+        self.evaluations_number_of_collected_objects_task_two: list[list[int]] = []
+        self.evaluations_number_of_switches: list[list[int]] = []
+        self.evaluations_number_of_task_one_actions: list[list[int]] = []
+        self.evaluations_number_of_task_two_actions: list[list[int]] = []
+        self.evaluations_number_of_consecutive_actions_in_task_one: list[list[int]] = []
+        self.evaluations_number_of_consecutive_actions_in_task_two: list[list[int]] = []
+        self.evaluations_objects_visible_when_switching_task_one: list[list[int]] = []
+        self.evaluations_objects_visible_when_not_switching_task_one: list[list[int]] = []
+        self.evaluations_objects_visible_when_switching_task_two: list[list[int]] = []
+        self.evaluations_objects_visible_when_not_switching_task_two: list[list[int]] = []
+        self.evaluations_mean_distance_to_visible_objects_when_switching_task_one: list[list[int]] = []
+        self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_one: list[list[int]] = []
+        self.evaluations_mean_distance_to_visible_objects_when_switching_task_two: list[list[int]] = []
+        self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_two: list[list[int]] = []
+        
+        # get configurations, cut off .yaml, difficulties = str, input noise = bool
+        difficulty_task_one = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
+                                  "config_file_name_collect_task_one"][-9:-5]
+        difficulty_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
+                                  "config_file_name_collect_task_two"][-9:-5]
+        # difficulty_task_one = eval_env.env_method("get_wrapper_attr", "env")[
+        #                           0].env.env.env.env.env.spec.kwargs["config_file_name_collect_task_one"][-9:-5]
+        # difficulty_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.env.env.env.env.spec.kwargs[
+        #                           "config_file_name_collect_task_two"][-9:-5]
+        
+        input_noise_task_one = ""
+        input_noise_task_two = ""
+        if "input_noise_in_subtasks_one" in eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs:
+            input_noise_task_one = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
+                "input_noise_in_subtasks_one"]
+        if "input_noise_in_subtasks_two" in eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs:
+            input_noise_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
+                "input_noise_in_subtasks_two"]
+        # if "input_noise_in_subtasks_one" in eval_env.env_method("get_wrapper_attr", "env")[
+        #     0].env.env.env.env.env.spec.kwargs:
+        #     input_noise_task_one = eval_env.env_method("get_wrapper_attr", "env")[0].env.env.env.env.env.spec.kwargs[
+        #         "input_noise_in_subtasks_one"]
+        # if "input_noise_in_subtasks_two" in eval_env.env_method("get_wrapper_attr", "env")[
+        #     0].env.env.env.env.env.spec.kwargs:
+        #     input_noise_task_two = eval_env.env_method("get_wrapper_attr", "env")[0].env.env.env.env.env.spec.kwargs[
+        #         "input_noise_in_subtasks_two"]
+        agent_name = "world_state"
+        if isinstance(eval_env.envs[0], SoCObsAndRewardWrapperEnv):
+            agent_name = "SoCObsAndRewardWrapperEnv"
+        elif isinstance(eval_env.envs[0], SoCObsOnlyWrapperEnv):
+            agent_name = "SoCObsOnlyWrapperEnv"
+        elif isinstance(eval_env.envs[0], SoCRewardOnlyWrapperEnv):
+            agent_name = "SoCRewardOnlyWrapperEnv"
+        elif isinstance(eval_env.envs[0], SwitchingBoostWrapperEnv):
+            agent_name = "SwitchingBoostWrapperEnv"
+        if eval_env.env_method("get_wrapper_attr", "env")[0].env.normalize_rewards:
+            agent_name += "_normalized_rewards"
+        # if eval_env.env_method("get_wrapper_attr", "env")[0].env.env.env.env.env.normalize_rewards:
+        #     agent_name += "_normalized_rewards"
+        self.filepath_for_storage = ROOT_DIR / f"logs/collect_{difficulty_task_one}_{difficulty_task_two}_{str(input_noise_task_one)}_{str(input_noise_task_two)}_{agent_name}.csv"
+        with open(self.filepath_for_storage, "a") as file:
+            writer = csv.writer(file)
+            writer.writerow(["Mean reward", "Std reward",
+                             "Mean number of collected objects task one", "Std number of collected objects task one",
+                             "Mean number of collected objects task two", "Std number of collected objects task two",
+                             "Mean number of switches", "Std number of switches",
+                             "Mean number of collect task one actions", "Std number of collect task one actions",
+                             "Mean number of collect task two actions", "Std number of collect task two actions",
+                             "Episode rewards",
+                             "Episode number of collected objects task one",
+                             "Episode number of collected objects task two",
+                             "Episode number of switches", "Episode number of collect task one actions",
+                             "Episode number of collect task two actions",
+                             "Episode number of consecutive actions in task one",
+                             "Episode number of consecutive actions in task two",
+                             "Episode objects visible when switching task one",
+                             "Episode objects visible when not switching task one",
+                             "Episode objects visible when switching task two",
+                             "Episode objects visible when not switching task two",
+                             "Episode mean distance to visible objects when switching task one",
+                             "Episode mean distance to visible objects when not switching task one",
+                             "Episode mean distance to visible objects when switching task two",
+                             "Episode mean distance to visible objects when not switching task two",
+                             "Episode true if it was switched"])
+        ###
+    
+    def _on_step(self) -> bool:
+        continue_training = True
+        
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            # Sync training and eval env if there is VecNormalize
+            if self.model.get_vec_normalize_env() is not None:
+                try:
+                    sync_envs_normalization(self.training_env, self.eval_env)
+                except AttributeError as e:
+                    raise AssertionError(
+                        "Training and eval env are not wrapped the same way, "
+                        "see https://stable-baselines3.readthedocs.io/en/master/guide/callbacks.html#evalcallback "
+                        "and warning above."
+                    ) from e
+            
+            # Reset success rate buffer
+            self._is_success_buffer = []
+            
+            ### me: own evaluation function to get number of crashed and collected objects
+            (episode_rewards,
+             episode_lengths,
+             episode_number_of_collected_objects_task_one,
+             episode_number_of_collected_objects_task_two,
+             episode_number_of_switches,
+             episode_number_of_task_one_actions,
+             episode_number_of_task_two_actions,
+             episode_number_of_consecutive_actions_in_task_one,
+             episode_number_of_consecutive_actions_in_task_two,
+             episode_objects_visible_when_switching_task_one,
+             episode_objects_visible_when_not_switching_task_one,
+             episode_objects_visible_when_switching_task_two,
+             episode_objects_visible_when_not_switching_task_two,
+             episode_mean_distance_to_visible_objects_when_switching_task_one,
+             episode_mean_distance_to_visible_objects_when_not_switching_task_one,
+             episode_mean_distance_to_visible_objects_when_switching_task_two,
+             episode_mean_distance_to_visible_objects_when_not_switching_task_two,
+             episode_true_if_it_was_switched) = evaluate_policy_meta_agent_new(
+                self.model,
+                self.eval_env,
+                n_eval_episodes=self.n_eval_episodes,
+                render=self.render,
+                deterministic=self.deterministic,
+                return_episode_rewards=True,
+                warn=self.warn,
+                callback=self._log_success_callback,
+                logger=self.logger
+            )
+            ###
+            
+            if self.log_path is not None:
+                assert isinstance(episode_rewards, list)
+                assert isinstance(episode_lengths, list)
+                ### added by me
+                assert isinstance(episode_number_of_collected_objects_task_one, list)
+                assert isinstance(episode_number_of_collected_objects_task_two, list)
+                assert isinstance(episode_number_of_switches, list)
+                assert isinstance(episode_number_of_task_one_actions, list)
+                assert isinstance(episode_number_of_task_two_actions, list)
+                assert isinstance(episode_number_of_consecutive_actions_in_task_one, list)
+                assert isinstance(episode_number_of_consecutive_actions_in_task_two, list)
+                assert isinstance(episode_objects_visible_when_switching_task_one, list)
+                assert isinstance(episode_objects_visible_when_not_switching_task_one, list)
+                assert isinstance(episode_objects_visible_when_switching_task_two, list)
+                assert isinstance(episode_objects_visible_when_not_switching_task_two, list)
+                assert isinstance(episode_mean_distance_to_visible_objects_when_switching_task_one, list)
+                assert isinstance(episode_mean_distance_to_visible_objects_when_not_switching_task_one, list)
+                assert isinstance(episode_mean_distance_to_visible_objects_when_switching_task_two, list)
+                assert isinstance(episode_mean_distance_to_visible_objects_when_not_switching_task_two, list)
+                ###
+                self.evaluations_timesteps.append(self.num_timesteps)
+                self.evaluations_results.append(episode_rewards)
+                self.evaluations_length.append(episode_lengths)
+                ### added by me
+                self.evaluations_number_of_collected_objects_task_one.append(
+                    episode_number_of_collected_objects_task_one)
+                self.evaluations_number_of_collected_objects_task_two.append(
+                    episode_number_of_collected_objects_task_two)
+                self.evaluations_number_of_switches.append(episode_number_of_switches)
+                self.evaluations_number_of_task_one_actions.append(episode_number_of_task_one_actions)
+                self.evaluations_number_of_task_two_actions.append(episode_number_of_task_two_actions)
+                self.evaluations_number_of_consecutive_actions_in_task_one.append(
+                    episode_number_of_consecutive_actions_in_task_one)
+                self.evaluations_number_of_consecutive_actions_in_task_two.append(
+                    episode_number_of_consecutive_actions_in_task_two)
+                self.evaluations_objects_visible_when_switching_task_one.append(
+                    episode_objects_visible_when_switching_task_one)
+                self.evaluations_objects_visible_when_not_switching_task_one.append(
+                    episode_objects_visible_when_not_switching_task_one)
+                self.evaluations_objects_visible_when_switching_task_two.append(
+                    episode_objects_visible_when_switching_task_two)
+                self.evaluations_objects_visible_when_not_switching_task_two.append(
+                    episode_objects_visible_when_not_switching_task_two)
+                self.evaluations_mean_distance_to_visible_objects_when_switching_task_one.append(
+                    episode_mean_distance_to_visible_objects_when_switching_task_one)
+                self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_one.append(
+                    episode_mean_distance_to_visible_objects_when_not_switching_task_one)
+                self.evaluations_mean_distance_to_visible_objects_when_switching_task_two.append(
+                    episode_mean_distance_to_visible_objects_when_switching_task_two)
+                self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_two.append(
+                    episode_mean_distance_to_visible_objects_when_not_switching_task_two)
+                ###
+                
+                kwargs = {}
+                # Save success log if present
+                if len(self._is_success_buffer) > 0:
+                    self.evaluations_successes.append(self._is_success_buffer)
+                    kwargs = dict(successes=self.evaluations_successes)
+                
+                np.savez(
+                    self.log_path,
+                    timesteps=self.evaluations_timesteps,
+                    results=self.evaluations_results,
+                    ep_lengths=self.evaluations_length,
+                    ### added by me
+                    number_of_collected_objects_task_one=self.evaluations_number_of_collected_objects_task_one,
+                    number_of_collected_objects_task_two=self.evaluations_number_of_collected_objects_task_two,
+                    number_of_switches=self.evaluations_number_of_switches,
+                    number_of_task_one_actions=self.evaluations_number_of_task_one_actions,
+                    number_of_task_two_actions=self.evaluations_number_of_task_two_actions,
+                    number_of_consecutive_actions_in_task_one=[np.mean(current_list) for current_list in
+                                                               self.evaluations_number_of_consecutive_actions_in_task_one[
+                                                                   0]],
+                    number_of_consecutive_actions_in_task_two=[np.mean(current_list) for current_list in
+                                                               self.evaluations_number_of_consecutive_actions_in_task_two[
+                                                                   0]],
+                    objects_visible_when_switching_task_one=[np.mean(current_list) for current_list in
+                                                             self.evaluations_objects_visible_when_switching_task_one[
+                                                                 0]],
+                    objects_visible_when_not_switching_task_one=[np.mean(current_list) for current_list in
+                                                                 self.evaluations_objects_visible_when_not_switching_task_one[
+                                                                     0]],
+                    objects_visible_when_switching_task_two=[np.mean(current_list) for current_list in
+                                                             self.evaluations_objects_visible_when_switching_task_two[
+                                                                 0]],
+                    objects_visible_when_not_switching_task_two=[np.mean(current_list) for current_list in
+                                                                 self.evaluations_objects_visible_when_not_switching_task_two[
+                                                                     0]],
+                    mean_distance_to_visible_objects_when_switching_task_one=[np.mean(current_list) for current_list in
+                                                                              self.evaluations_mean_distance_to_visible_objects_when_switching_task_one[
+                                                                                  0]],
+                    mean_distance_to_visible_objects_when_not_switching_task_one=[np.mean(current_list) for current_list
+                                                                                  in
+                                                                                  self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_one[
+                                                                                      0]],
+                    mean_distance_to_visible_objects_when_switching_task_two=[np.mean(current_list) for current_list in
+                                                                              self.evaluations_mean_distance_to_visible_objects_when_switching_task_two[
+                                                                                  0]],
+                    mean_distance_to_visible_objects_when_not_switching_task_two=[np.mean(current_list) for current_list
+                                                                                  in
+                                                                                  self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_two[
+                                                                                      0]],
+                    ###
+                    **kwargs,  # type: ignore[arg-type]
+                )
+            
+            mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
+            mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
+            ### added by me
+            mean_number_of_collected_objects_task_one, std_number_of_collected_objects_task_one = np.mean(
+                episode_number_of_collected_objects_task_one), np.std(episode_number_of_collected_objects_task_one)
+            mean_number_of_collected_objects_task_two, std_number_of_collected_objects_task_two = np.mean(
+                episode_number_of_collected_objects_task_two), np.std(episode_number_of_collected_objects_task_two)
+            mean_number_of_switches, std_number_of_switches = np.mean(episode_number_of_switches), np.std(
+                episode_number_of_switches)
+            mean_number_of_task_one_actions, std_number_of_task_one_actions = np.mean(
+                episode_number_of_task_one_actions), np.std(episode_number_of_task_one_actions)
+            mean_number_of_task_two_actions, std_number_of_task_two_actions = np.mean(
+                episode_number_of_task_two_actions), np.std(episode_number_of_task_two_actions)
+            mean_episode_number_of_consecutive_actions_in_task_one = [np.mean(number_of_consecutive_actions_in_task_one)
+                                                                      for
+                                                                      number_of_consecutive_actions_in_task_one in
+                                                                      episode_number_of_consecutive_actions_in_task_one]
+            mean_number_of_consecutive_actions_in_task_one, std_number_of_consecutive_actions_in_task_one = np.mean(
+                mean_episode_number_of_consecutive_actions_in_task_one), np.std(
+                mean_episode_number_of_consecutive_actions_in_task_one)
+            mean_episode_number_of_consecutive_actions_in_task_two = [np.mean(number_of_consecutive_actions_in_task_two)
+                                                                      for
+                                                                      number_of_consecutive_actions_in_task_two in
+                                                                      episode_number_of_consecutive_actions_in_task_two]
+            mean_number_of_consecutive_actions_in_task_two, std_number_of_consecutive_actions_in_task_two = np.mean(
+                mean_episode_number_of_consecutive_actions_in_task_two), np.std(
+                mean_episode_number_of_consecutive_actions_in_task_two)
+            mean_episode_objects_visible_when_switching_task_one = [np.mean(objects_visible_when_switching_task_one) for
+                                                                    objects_visible_when_switching_task_one in
+                                                                    episode_objects_visible_when_switching_task_one]
+            mean_objects_visible_when_switching_task_one, std_objects_visible_when_switching_task_one = np.mean(
+                mean_episode_objects_visible_when_switching_task_one), np.std(
+                mean_episode_objects_visible_when_switching_task_one)
+            mean_episode_objects_visible_when_not_switching_task_one = [
+                np.mean(objects_visible_when_not_switching_task_one) for
+                objects_visible_when_not_switching_task_one in
+                episode_objects_visible_when_not_switching_task_one]
+            mean_objects_visible_when_not_switching_task_one, std_objects_visible_when_not_switching_task_one = np.mean(
+                mean_episode_objects_visible_when_not_switching_task_one), np.std(
+                mean_episode_objects_visible_when_not_switching_task_one)
+            mean_episode_objects_visible_when_switching_task_two = [np.mean(objects_visible_when_switching_task_two) for
+                                                                    objects_visible_when_switching_task_two in
+                                                                    episode_objects_visible_when_switching_task_two]
+            mean_objects_visible_when_switching_task_two, std_objects_visible_when_switching_task_two = np.mean(
+                mean_episode_objects_visible_when_switching_task_two), np.std(
+                mean_episode_objects_visible_when_switching_task_two)
+            mean_episode_objects_visible_when_not_switching_task_two = [
+                np.mean(objects_visible_when_not_switching_task_two) for
+                objects_visible_when_not_switching_task_two in
+                episode_objects_visible_when_not_switching_task_two]
+            mean_objects_visible_when_not_switching_task_two, std_objects_visible_when_not_switching_task_two = np.mean(
+                mean_episode_objects_visible_when_not_switching_task_two), np.std(
+                mean_episode_objects_visible_when_not_switching_task_two)
+            mean_episode_mean_distance_to_visible_objects_when_switching_task_one = [np.mean(
+                mean_distance_to_visible_objects_when_switching_task_one) for
+                mean_distance_to_visible_objects_when_switching_task_one in
+                episode_mean_distance_to_visible_objects_when_switching_task_one]
+            mean_mean_distance_to_visible_objects_when_switching_task_one, std_mean_distance_to_visible_objects_when_switching_task_one = np.mean(
+                mean_episode_mean_distance_to_visible_objects_when_switching_task_one), np.std(
+                mean_episode_mean_distance_to_visible_objects_when_switching_task_one)
+            mean_episode_mean_distance_to_visible_objects_when_not_switching_task_one = [np.mean(
+                mean_distance_to_visible_objects_when_not_switching_task_one) for
+                mean_distance_to_visible_objects_when_not_switching_task_one in
+                episode_mean_distance_to_visible_objects_when_not_switching_task_one]
+            mean_mean_distance_to_visible_objects_when_not_switching_task_one, std_mean_distance_to_visible_objects_when_not_switching_task_one = np.mean(
+                mean_episode_mean_distance_to_visible_objects_when_not_switching_task_one), np.std(
+                mean_episode_mean_distance_to_visible_objects_when_not_switching_task_one)
+            mean_episode_mean_distance_to_visible_objects_when_switching_task_two = [np.mean(
+                mean_distance_to_visible_objects_when_switching_task_two) for
+                mean_distance_to_visible_objects_when_switching_task_two in
+                episode_mean_distance_to_visible_objects_when_switching_task_two]
+            mean_mean_distance_to_visible_objects_when_switching_task_two, std_mean_distance_to_visible_objects_when_switching_task_two = np.mean(
+                mean_episode_mean_distance_to_visible_objects_when_switching_task_two), np.std(
+                mean_episode_mean_distance_to_visible_objects_when_switching_task_two)
+            mean_episode_mean_distance_to_visible_objects_when_not_switching_task_two = [np.mean(
+                mean_distance_to_visible_objects_when_not_switching_task_two) for
+                mean_distance_to_visible_objects_when_not_switching_task_two in
+                episode_mean_distance_to_visible_objects_when_not_switching_task_two]
+            mean_mean_distance_to_visible_objects_when_not_switching_task_two, std_mean_distance_to_visible_objects_when_not_switching_task_two = np.mean(
+                mean_episode_mean_distance_to_visible_objects_when_not_switching_task_two), np.std(
+                mean_episode_mean_distance_to_visible_objects_when_not_switching_task_two)
+            ###
+            self.last_mean_reward = float(mean_reward)
+            
+            if self.verbose >= 1:
+                print(
+                    f"Eval num_timesteps={self.num_timesteps}, " f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
+                print(f"Episode length: {mean_ep_length:.2f} +/- {std_ep_length:.2f}")
+                ### added by me
+                print(
+                    f"Number of collected objects task one: {mean_number_of_collected_objects_task_one:.2f} +/- {std_number_of_collected_objects_task_one:.2f}")
+                print(
+                    f"Number of collected objects task two: {mean_number_of_collected_objects_task_two:.2f} +/- {std_number_of_collected_objects_task_two:.2f}")
+                print(f"Number of switches: {mean_number_of_switches:.2f} +/- {std_number_of_switches:.2f}")
+                print(
+                    f"Number of task one actions: {mean_number_of_task_one_actions:.2f} +/- {std_number_of_task_one_actions:.2f}")
+                print(
+                    f"Number of task two actions: {mean_number_of_task_two_actions:.2f} +/- {std_number_of_task_two_actions:.2f}")
+                print(
+                    f"Mean number of consecutive actions in task one: {mean_number_of_consecutive_actions_in_task_one:.2f} +/- {std_number_of_consecutive_actions_in_task_one:.2f}")
+                print(
+                    f"Mean number of consecutive actions in task two: {mean_number_of_consecutive_actions_in_task_two:.2f} +/- {std_number_of_consecutive_actions_in_task_two:.2f}")
+                print(
+                    f"Mean objects visible when switching task one: {mean_objects_visible_when_switching_task_one:.2f} +/- {std_objects_visible_when_switching_task_one:.2f}")
+                print(
+                    f"Mean objects visible when not switching task one: {mean_objects_visible_when_not_switching_task_one:.2f} +/- {std_objects_visible_when_not_switching_task_one:.2f}")
+                print(
+                    f"Mean objects visible when switching task two: {mean_objects_visible_when_switching_task_two:.2f} +/- {std_objects_visible_when_switching_task_two:.2f}")
+                print(
+                    f"Mean objects visible when not switching task two: {mean_objects_visible_when_not_switching_task_two:.2f} +/- {std_objects_visible_when_not_switching_task_two:.2f}")
+                print(
+                    f"Mean distance to visible objects when switching task one: {mean_mean_distance_to_visible_objects_when_switching_task_one:.2f} +/- {std_mean_distance_to_visible_objects_when_switching_task_one:.2f}")
+                print(
+                    f"Mean distance to visible objects when not switching task one: {mean_mean_distance_to_visible_objects_when_not_switching_task_one:.2f} +/- {std_mean_distance_to_visible_objects_when_not_switching_task_one:.2f}")
+                print(
+                    f"Mean distance to visible objects when switching task two: {mean_mean_distance_to_visible_objects_when_switching_task_two:.2f} +/- {std_mean_distance_to_visible_objects_when_switching_task_two:.2f}")
+                print(
+                    f"Mean distance to visible objects when not switching task two: {mean_mean_distance_to_visible_objects_when_not_switching_task_two:.2f} +/- {std_mean_distance_to_visible_objects_when_not_switching_task_two:.2f}")
+                with open(self.filepath_for_storage, "a") as file:
+                    writer = csv.writer(file)
+                    writer.writerow(
+                        [mean_reward, std_reward,
+                         mean_number_of_collected_objects_task_one, std_number_of_collected_objects_task_one,
+                         mean_number_of_collected_objects_task_two, std_number_of_collected_objects_task_two,
+                         mean_number_of_switches, std_number_of_switches,
+                         mean_number_of_task_one_actions, std_number_of_task_one_actions,
+                         mean_number_of_task_two_actions, std_number_of_task_two_actions,
+                         episode_rewards,
+                         episode_number_of_collected_objects_task_one,
+                         episode_number_of_collected_objects_task_two,
+                         episode_number_of_switches,
+                         episode_number_of_task_one_actions,
+                         episode_number_of_task_two_actions,
+                         episode_number_of_consecutive_actions_in_task_one,
+                         episode_number_of_consecutive_actions_in_task_two,
+                         episode_objects_visible_when_switching_task_one,
+                         episode_objects_visible_when_not_switching_task_one,
+                         episode_objects_visible_when_switching_task_two,
+                         episode_objects_visible_when_not_switching_task_two,
+                         episode_mean_distance_to_visible_objects_when_switching_task_one,
+                         episode_mean_distance_to_visible_objects_when_not_switching_task_one,
+                         episode_mean_distance_to_visible_objects_when_switching_task_two,
+                         episode_mean_distance_to_visible_objects_when_not_switching_task_two,
+                         episode_true_if_it_was_switched
+                         ])
+                ###
+            # Add to current Logger
+            self.logger.record("eval/mean_reward", float(mean_reward))
+            self.logger.record("eval/mean_ep_length", mean_ep_length)
+            ### added by me
+            self.logger.record("eval/mean_number_of_collected_objects_task_one",
+                               mean_number_of_collected_objects_task_one)
+            self.logger.record("eval/mean_number_of_collected_objects_task_two",
+                               mean_number_of_collected_objects_task_two)
+            self.logger.record("eval/mean_number_of_switches", mean_number_of_switches)
+            self.logger.record("eval/mean_number_of_task_one_actions", mean_number_of_task_one_actions)
+            self.logger.record("eval/mean_number_of_task_two_actions", mean_number_of_task_two_actions)
+            ###
+            
+            if len(self._is_success_buffer) > 0:
+                success_rate = np.mean(self._is_success_buffer)
+                if self.verbose >= 1:
+                    print(f"Success rate: {100 * success_rate:.2f}%")
+                self.logger.record("eval/success_rate", success_rate)
+            
+            # Dump log so the evaluation results are printed with the correct timestep
+            self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
+            self.logger.dump(self.num_timesteps)
+            
+            if mean_reward > self.best_mean_reward:
+                if self.verbose >= 1:
+                    print("New best mean reward!")
+                if self.best_model_save_path is not None:
+                    self.model.save(os.path.join(self.best_model_save_path, "best_model"))
+                self.best_mean_reward = float(mean_reward)
+                # Trigger callback on new best model, if needed
+                if self.callback_on_new_best is not None:
+                    continue_training = self.callback_on_new_best.on_step()
+            
+            # Trigger callback after every evaluation, if needed
+            if self.callback is not None:
+                continue_training = continue_training and self._on_event()
+        
+        return continue_training
+
+
+class CustomEvalCallbackMetaAgent(EvalCallback):
+    """
+    Callback for evaluating an agent.
+
+    .. warning::
+
+      When using multiple environments, each call to  ``env.step()``
+      will effectively correspond to ``n_envs`` steps.
+      To account for that, you can use ``eval_freq = max(eval_freq // n_envs, 1)``
+
+    :param eval_env: The environment used for initialization
+    :param callback_on_new_best: Callback to trigger
+        when there is a new best model according to the ``mean_reward``
+    :param n_eval_episodes: The number of episodes to test the agent
+    :param eval_freq: Evaluate the agent every ``eval_freq`` call of the callback.
+    :param log_path: Path to a folder where the evaluations (``evaluations.npz``)
+        will be saved. It will be updated at each evaluation.
+    :param best_model_save_path: Path to a folder where the best model
+        according to performance on the eval env will be saved.
+    :param deterministic: Whether the evaluation should
+        use a stochastic or deterministic actions.
+    :param render: Whether to render or not the environment during evaluation
+    :param verbose:
+    :param warn: Passed to ``evaluate_policy`` (warns if ``eval_env`` has not been
+        wrapped with a Monitor wrapper)
+    """
+    counter = 0
+    
+    def _on_step(self) -> bool:
+        
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            # Sync training and eval env if there is VecNormalize
+            sync_envs_normalization(self.training_env, self.eval_env)
+            
+            episode_rewards, episode_lengths, episode_number_of_crashed_objects, episode_number_of_collected_objects, episode_number_of_switches, episode_number_of_dodge_actions, episode_number_of_collect_actions = custom_evaluate_policy_meta_agent(
+                self.model,
+                self.eval_env,
+                n_eval_episodes=self.n_eval_episodes,
+                render=self.render,
+                deterministic=self.deterministic,
+                return_episode_rewards=True,
+                warn=self.warn,
+                logger=self.logger,
+                counter=self.counter,
+            )
+            self.counter += 1
+            
+            if self.log_path is not None:
+                self.evaluations_timesteps.append(self.num_timesteps)
+                self.evaluations_results.append(episode_rewards)
+                self.evaluations_length.append(episode_lengths)
+                
+                np.savez(
+                    self.log_path,
+                    timesteps=self.evaluations_timesteps,
+                    results=self.evaluations_results,
+                    ep_lengths=self.evaluations_length,
+                    number_of_crashed_objects=[episode_number_of_crashed_objects],
+                    number_of_collected_objects=[episode_number_of_collected_objects],
+                    number_of_switches=[episode_number_of_switches],
+                    number_of_dodge_actions=[episode_number_of_dodge_actions],
+                    number_of_collect_actions=[episode_number_of_collect_actions],
+                )
+            
+            mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
+            mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
+            mean_number_of_crashed_objects, std_number_of_crashed_objects = np.mean(
+                episode_number_of_crashed_objects), np.std(episode_number_of_crashed_objects)
+            mean_number_of_collected_objects, std_number_of_collected_objects = np.mean(
+                episode_number_of_collected_objects), np.std(episode_number_of_collected_objects)
+            mean_number_of_switches, std_number_of_switches = np.mean(episode_number_of_switches), np.std(
+                episode_number_of_switches)
+            mean_number_of_dodge_actions, std_number_of_dodge_actions = np.mean(
+                episode_number_of_dodge_actions), np.std(
+                episode_number_of_dodge_actions)
+            mean_number_of_collect_actions, std_number_of_collect_actions = np.mean(
+                episode_number_of_collect_actions), np.std(episode_number_of_collected_objects)
+            self.last_mean_reward = mean_reward
+            
+            if self.verbose > 0:
+                print(
+                    f"Eval num_timesteps={self.num_timesteps}, " f"episode_reward={mean_reward:.2f} +/- {std_reward:.2f}")
+                print(f"Episode length: {mean_ep_length:.2f} +/- {std_ep_length:.2f}")
+                print(
+                    f"Number of crashed objects: {mean_number_of_crashed_objects:.2f} +/- {std_number_of_crashed_objects:.2f}")
+                print(
+                    f"Number of collected objects: {mean_number_of_collected_objects:.2f} +/- {std_number_of_collected_objects:.2f}")
+                print(
+                    f"Number of switches: {mean_number_of_switches:.2f} +/- {std_number_of_switches:.2f}")
+                print(
+                    f"Number of dodge actions: {mean_number_of_dodge_actions:.2f} +/- {std_number_of_dodge_actions:.2f}")
+                print(
+                    f"Number of collect actions: {mean_number_of_collect_actions:.2f} +/- {std_number_of_collect_actions:.2f}")
+            # Add to current Logger
+            self.logger.record("eval/mean_reward", float(mean_reward))
+            self.logger.record("eval/mean_ep_length", mean_ep_length)
+            self.logger.record("eval/mean_number_of_crashed_objects", mean_number_of_crashed_objects)
+            self.logger.record("eval/mean_number_of_collected_objects", mean_number_of_collected_objects)
+            self.logger.record("eval/mean_number_of_switches", mean_number_of_switches)
+            self.logger.record("eval/mean_number_of_dodge_actions", mean_number_of_dodge_actions)
+            self.logger.record("eval/mean_number_of_collect_actions", mean_number_of_collect_actions)
+            
+            # Dump log so the evaluation results are printed with the correct timestep
+            self.logger.record("time/total timesteps", self.num_timesteps, exclude="tensorboard")
+            self.logger.dump(self.num_timesteps)
+            
+            if mean_reward > self.best_mean_reward:
+                if self.verbose > 0:
+                    print("New best mean reward!")
+                if self.best_model_save_path is not None:
+                    self.model.save(os.path.join(self.best_model_save_path, "rl_model_best"))
+                self.best_mean_reward = mean_reward
+                # Trigger callback if needed
+                if self.callback is not None:
+                    return self._on_event()
+        
+        return True

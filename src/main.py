@@ -13,17 +13,29 @@ import wandb
 import myosuite
 
 from stable_baselines3.her import HerReplayBuffer
+from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-from custom_envs.register_envs import register_custom_envs
-from utils.util import get_git_label, set_global_seeds, get_train_render_schedule, get_eval_render_schedule, \
+from src.custom_envs.register_envs import register_custom_envs
+from src.utils.util import get_git_label, set_global_seeds, get_train_render_schedule, get_eval_render_schedule, \
     avoid_start_learn_before_first_episode_finishes
 from utils.mlflow_util import setup_mlflow, get_hyperopt_score, log_params_from_omegaconf_dict
-from utils.custom_logger import setup_logger
-from utils.custom_callbacks import EarlyStopCallback, EvalCallback
-from utils.custom_wrappers import DisplayWrapper, RecordVideo
+
 import yaml
+from src.utils.custom_logger import setup_logger
+from src.utils.custom_callbacks import EarlyStopCallback, EvalCallback, EvalCallbackMoonlander, \
+    CustomEvalCallbackMetaAgent, EvalCallbackMetaAgentNew
+from src.utils.custom_wrappers import DisplayWrapper, RecordVideo
+from src.custom_envs.moonlander.image_wrapper import ImageWrapperEnv
+from src.custom_envs.moonlander.model_based_wrapper import ModelBasedWrapperEnv
+from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
+from src.custom_envs.moonlander.positions_model_based_wrapper import PositionsModelBasedWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_observation_only_wrapper import SoCObsOnlyWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_switching_boost import SwitchingBoostWrapperEnv
+from src.custom_algorithms.ppo_moonlander.custom_cnn import CustomCNN
 
 # make git_label available in hydra
 OmegaConf.register_new_resolver("git_label", get_git_label)
@@ -32,7 +44,7 @@ OmegaConf.register_new_resolver("git_label", get_git_label)
 def get_env_instance(cfg, logger):
     train_env = gym.make(cfg.env.name, **cfg.env.env_kwargs)
     eval_env = gym.make(cfg.env.name, **cfg.env.env_kwargs)
-
+    
     # wrappers for rendering
     train_render_schedule = get_train_render_schedule(cfg.render_freq)
     eval_render_schedule = get_eval_render_schedule(cfg.render_freq, cfg.n_test_rollouts)
@@ -62,33 +74,81 @@ def get_env_instance(cfg, logger):
                                metric_keys=cfg.render_metrics_test,
                                video_length=cfg.render_frames_per_clip,
                                logger=logger)
-
+    
     # The following gym wrappers can be added via commandline parameters,
     # e.g. use +flatten_obs=1 to use the FlattenObservation wrapper
     if 'flatten_obs' in cfg and cfg.flatten_obs:
         train_env = gym.wrappers.FlattenObservation(train_env)
         eval_env = gym.wrappers.FlattenObservation(eval_env)
-
+    
     if 'clip_action' in cfg and cfg.clip_action:
         train_env = gym.wrappers.ClipAction(train_env)
         eval_env = gym.wrappers.ClipAction(eval_env)
-
+    
     if 'normalize_obs' in cfg and cfg.normalize_obs:
         train_env = gym.wrappers.NormalizeObservation(train_env)
         eval_env = gym.wrappers.NormalizeObservation(eval_env)
-
+    
     if 'normalize_reward' in cfg and cfg.normalize_reward:
         train_env = gym.wrappers.NormalizeReward(train_env)
         eval_env = gym.wrappers.NormalizeReward(eval_env)
-
+    
     if 'time_aware_observation' in cfg and cfg.time_aware_observation:
         train_env = gym.wrappers.TimeAwareObservation(train_env)
         eval_env = gym.wrappers.TimeAwareObservation(eval_env)
-
+    
+    if 'image_observation' in cfg and cfg.image_observation:
+        print("Wrapping Environment in ImageWrapperEnv")
+        train_env = ImageWrapperEnv(env=train_env)
+        eval_env = ImageWrapperEnv(env=eval_env)
+    
+    if "model_based" in cfg and cfg.model_based and "positions" in cfg and cfg.positions:
+        print("Wrapping Environment in PositionsModelBasedWrapperEnv")
+        train_env = PositionsModelBasedWrapperEnv(env=train_env)
+        eval_env = PositionsModelBasedWrapperEnv(env=eval_env)
+    else:
+        if "model_based" in cfg and cfg.model_based:
+            print("Wrapping Environment in ModelBasedWrapperEnv")
+            train_env = ModelBasedWrapperEnv(env=train_env)
+            eval_env = ModelBasedWrapperEnv(env=eval_env)
+        
+        if "positions" in cfg and cfg.positions:
+            print("Wrapping Environment in PositionWrapperEnv")
+            train_env = PositionsWrapperEnv(env=train_env)
+            eval_env = PositionsWrapperEnv(env=eval_env)
+    
+    if "reversed_prediction_error" in cfg and cfg.reversed_prediction_error:
+        reversed_prediction_error = True
+    else:
+        reversed_prediction_error = False
+    
+    if "soc_reward_only" in cfg and cfg.soc_reward_only:
+        print("Wrapping Environment in SoCRewardOnlyWrapperEnv")
+        train_env = SoCRewardOnlyWrapperEnv(env=train_env, reversed_prediction_error=reversed_prediction_error)
+        eval_env = SoCRewardOnlyWrapperEnv(env=eval_env, reversed_prediction_error=reversed_prediction_error)
+    if "soc" in cfg and cfg.soc:
+        print("Wrapping Environment in SoCObsAndRewardWrapperEnv")
+        train_env = SoCRewardOnlyWrapperEnv(env=train_env, reversed_prediction_error=reversed_prediction_error)
+        eval_env = SoCRewardOnlyWrapperEnv(env=eval_env, reversed_prediction_error=reversed_prediction_error)
+        train_env = SoCObsAndRewardWrapperEnv(env=train_env)
+        eval_env = SoCObsAndRewardWrapperEnv(env=eval_env)
+    if "soc_obs_only" in cfg and cfg.soc_obs_only:
+        print("Wrapping Environment in SoCObsOnlyWrapperEnv")
+        train_env = SoCRewardOnlyWrapperEnv(env=train_env, reversed_prediction_error=reversed_prediction_error)
+        eval_env = SoCRewardOnlyWrapperEnv(env=eval_env, reversed_prediction_error=reversed_prediction_error)
+        train_env = SoCObsAndRewardWrapperEnv(env=train_env)
+        eval_env = SoCObsAndRewardWrapperEnv(env=eval_env)
+        train_env = SoCObsOnlyWrapperEnv(env=train_env)
+        eval_env = SoCObsOnlyWrapperEnv(env=eval_env)
+    if "boost_value" in cfg and cfg.boost_value > 0:
+        print("Wrapping Environment in SwitchingBoostWrapperEnv")
+        train_env = SwitchingBoostWrapperEnv(env=train_env, boost_value=cfg.boost_value)
+        eval_env = SwitchingBoostWrapperEnv(env=eval_env, boost_value=cfg.boost_value)
+    
     # At last, wrap in DummyVecEnv. This has to be the last wrapper, because it breaks the .unwrapped attribute.
     train_env = DummyVecEnv([lambda: train_env])
     eval_env = DummyVecEnv([lambda: eval_env])
-
+    
     return train_env, eval_env
 
 
@@ -99,10 +159,25 @@ def get_algo_instance(cfg, logger, env):
     try:
         baseline_class = getattr(importlib.import_module('stable_baselines3.' + algo_name), algo_name.upper())
     except ModuleNotFoundError:
-        baseline_class = getattr(importlib.import_module('custom_algorithms.' + algo_name), algo_name.upper())
+        if algo_name == 'recurrentppo':
+            # Recurrent PPO is not part of stable-baselines3, but of sb3-contrib
+            # BUT PPO with frame-stacking is usually quite competitive if not better, and faster than recurrent PPO!
+            # Exception: CarRacing-v0 and LunarLanderNoVel-v2
+            baseline_class = getattr(importlib.import_module('sb3_contrib.' + 'ppo_recurrent'), 'RecurrentPPO')
+        else:
+            baseline_class = getattr(importlib.import_module('custom_algorithms.' + algo_name), algo_name.upper())
     if 'replay_buffer_class' in alg_kwargs and alg_kwargs['replay_buffer_class'] == 'HerReplayBuffer':
         alg_kwargs['replay_buffer_class'] = HerReplayBuffer
         alg_kwargs = avoid_start_learn_before_first_episode_finishes(alg_kwargs, env)
+    if 'replay_buffer_class' in alg_kwargs and alg_kwargs['replay_buffer_class'] == 'ReplayBuffer':
+        alg_kwargs['replay_buffer_class'] = ReplayBuffer
+        alg_kwargs = avoid_start_learn_before_first_episode_finishes(alg_kwargs, env)
+    # use custom CNN because the standard CNN's kernels are too big for a 30x42 image
+    if cfg.algorithm.policy == "CnnPolicy":
+        alg_kwargs['policy_kwargs'] = dict(
+            features_extractor_class=CustomCNN,
+            features_extractor_kwargs=dict(features_dim=128),
+        )
     if cfg.restore_policy is not None:
         baseline = baseline_class.load(cfg.restore_policy, env=env, **alg_kwargs)
     else:
@@ -113,13 +188,34 @@ def get_algo_instance(cfg, logger, env):
 
 def create_callbacks(cfg, logger, eval_env):
     callback = []
-
+    
     if cfg.save_model_freq > 0:
         checkpoint_callback = CheckpointCallback(save_freq=cfg.save_model_freq, save_path=logger.get_dir(), verbose=1)
         callback.append(checkpoint_callback)
-
-    eval_callback = EvalCallback(eval_env, n_eval_episodes=cfg.n_test_rollouts, eval_freq=cfg.eval_after_n_steps,
-                                 log_path=logger.get_dir(), best_model_save_path=logger.get_dir(), render=False, warn=False)
+    
+    if cfg['env']['name'].startswith('Moonlander'):
+        eval_callback = EvalCallbackMoonlander(eval_env, n_eval_episodes=cfg.n_test_rollouts,
+                                               eval_freq=cfg.eval_after_n_steps,
+                                               log_path=logger.get_dir(), best_model_save_path=logger.get_dir(),
+                                               render=False,
+                                               warn=False)
+    elif cfg['env']['name'].startswith('MetaEnv-pretrained-without-SoC'):
+        eval_callback = EvalCallbackMetaAgentNew(eval_env, n_eval_episodes=cfg.n_test_rollouts,
+                                                 eval_freq=cfg.eval_after_n_steps,
+                                                 log_path=logger.get_dir(), best_model_save_path=logger.get_dir(),
+                                                 render=False,
+                                                 warn=False)
+    elif cfg['env']['name'].startswith('MetaEnv'):
+        eval_callback = CustomEvalCallbackMetaAgent(eval_env, n_eval_episodes=cfg.n_test_rollouts,
+                                                    eval_freq=cfg.eval_after_n_steps,
+                                                    log_path=logger.get_dir(), best_model_save_path=logger.get_dir(),
+                                                    render=False,
+                                                    warn=False)
+    else:
+        eval_callback = EvalCallback(eval_env, n_eval_episodes=cfg.n_test_rollouts, eval_freq=cfg.eval_after_n_steps,
+                                     log_path=logger.get_dir(), best_model_save_path=logger.get_dir(), render=False,
+                                     warn=False)
+    
     callback.append(eval_callback)
     early_stop_callback = EarlyStopCallback(metric=cfg.early_stop_data_column, eval_freq=cfg.eval_after_n_steps,
                                             threshold=cfg.early_stop_threshold, n_episodes=cfg.early_stop_last_n)
@@ -131,16 +227,15 @@ def create_callbacks(cfg, logger, eval_env):
 # config_path is relative to the location of the Python script
 @hydra.main(config_name="main", config_path="../conf", version_base="1.1.2")
 def main(cfg: DictConfig) -> (float, int):
-
     run_dir = os.getcwd()
     if cfg.restore_policy is not None:
         run_dir = os.path.split(cfg.restore_policy)[:-1][0]
         run_dir = run_dir + "_restored"
-
+    
     run_name = cfg['algorithm']['name'] + '_' + cfg['env']['name']
-
+    
     register_custom_envs()
-
+    
     if cfg.env.name not in gym.envs.registration.registry:
         original_cwd = hydra.core.hydra_config.HydraConfig.get().runtime.cwd
         env_yaml_path = os.path.join(original_cwd, "conf", "env", f"{cfg.env.name}.yaml")
@@ -150,10 +245,9 @@ def main(cfg: DictConfig) -> (float, int):
             f"\n Environment '{cfg.env.name}' is not registered in Gym.\n"
             f" Tip: Did you forget to register the environment?\n"
         )
-
-
+    
     setup_mlflow(cfg)
-
+    
     with mlflow.start_run(run_name=run_name) as mlflow_run:
         mlflow.log_param('log_dir', run_dir)
         logger = setup_logger(run_dir, run_name, cfg)
@@ -162,15 +256,15 @@ def main(cfg: DictConfig) -> (float, int):
         log_params_from_omegaconf_dict(cfg)
         OmegaConf.save(config=cfg, f='params.yaml')
         if cfg['seed'] == 0:
-            cfg['seed'] = int(time.time_ns() % 2**32)
+            cfg['seed'] = int(time.time_ns() % 2 ** 32)
         set_global_seeds(cfg.seed)
-
+        
         train_env, eval_env = get_env_instance(cfg, logger)
-
+        
         baseline = get_algo_instance(cfg, logger, train_env)
-
+        
         callback = create_callbacks(cfg, logger, eval_env)
-
+        
         logger.info("Launching training")
         training_finished = False
         total_steps = cfg.eval_after_n_steps * cfg.n_epochs
@@ -191,7 +285,7 @@ def main(cfg: DictConfig) -> (float, int):
                 raise e
         train_env.close()
         eval_env.close()
-
+        
         # after training
         if training_finished:
             hyperopt_score, n_epochs = get_hyperopt_score(cfg, mlflow_run)
@@ -205,7 +299,7 @@ def main(cfg: DictConfig) -> (float, int):
         if cfg["wandb"]:
             wandb.log({"hyperopt_score": hyperopt_score})
             wandb.finish()
-
+    
     return hyperopt_score, n_epochs, run_id
 
 
@@ -221,6 +315,7 @@ def generate_empty_yaml(env_name):
     else:
         print(f"YAML file already exists at: {yaml_path}")
 
+
 if __name__ == '__main__':
     # Ensure we're in the project root
     marker_dirs = ("conf", "src", "scripts")
@@ -230,7 +325,7 @@ if __name__ == '__main__':
             f" Required folders not found: {marker_dirs}\n"
             f" Current directory: {os.getcwd()}"
         )
-
+    
     # Find and parse env= override (support sweep)
     envs = []
     for arg in sys.argv:
@@ -238,9 +333,9 @@ if __name__ == '__main__':
             # Support comma-separated list: env=A,B,C
             envs = arg.split("=", 1)[1].split(",")
             break
-
+    
     for env in envs:
         generate_empty_yaml(env)
-
+    
     # Import and run your Hydra main
     main()

@@ -1,22 +1,27 @@
 """
 All custom environments must be registered here, otherwise they won't be found.
 """
+import csv
+import ast
+from src.custom_envs import ROOT_DIR
 from gymnasium.envs.registration import register
-import highway_env
 from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
 from utils.custom_wrappers import MakeDictObs
+
+
 def _merge(a, b):
     a.update(b)
     return a
 
+
 def register_custom_envs():
     ## Custom Ant environments
-    register(id="AntGym", entry_point='custom_envs.maze.ant_env:AntGymMod', max_episode_steps = 300,)
-
+    register(id="AntGym", entry_point='custom_envs.maze.ant_env:AntGymMod', max_episode_steps=300, )
+    
     ## Custom PointMaze environments
-    register(id='PointGym',entry_point='custom_envs.maze.point_env:PointGymMod',max_episode_steps=300,)
-    register(id='PointObjGym',entry_point='custom_envs.maze.point_obj_env:PointObjEnv',max_episode_steps=300,)
-
+    register(id='PointGym', entry_point='custom_envs.maze.point_env:PointGymMod', max_episode_steps=300, )
+    register(id='PointObjGym', entry_point='custom_envs.maze.point_obj_env:PointObjEnv', max_episode_steps=300, )
+    
     # kwargs = {
     #     "reward_type": reward_type,
     #     "distance_threshold": 0.45,
@@ -31,28 +36,530 @@ def register_custom_envs():
     #     kwargs=kwargs,
     #     max_episode_steps=700,
     # )
-
+    
     register(id='Reach1DOF-v0',
              entry_point='custom_envs.reach1dof.reach1dof_env:Reach1DOFEnv',
              max_episode_steps=50)
-
+    
+    register(id="MoonlanderWorld-dodge-simple-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'simple'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-pos_neg-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'pos_neg'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian-easy-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_easy.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian_with_distance-easy-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_dodge_easy.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian-hard-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_hard.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian_with_distance-hard-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_dodge_hard.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian-easy-ranges-inverted-v0",
+             entry_point="custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_easy.yaml',
+                     'ranges_inverted': True},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian-hard-ranges-inverted-v0",
+             entry_point="custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_hard.yaml',
+                     'ranges_inverted': True},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian-hard-10x10-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian',
+                     'config_file_name': 'config_dodge_hard_10x10.yaml'},
+             max_episode_steps=500)
+    
+    register(id="MoonlanderWorld-collect-simple-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'simple'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-pos_neg-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'pos_neg'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian-easy-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_easy.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-easy-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_easy.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-easy-input-noise-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_easy.yaml', 'input_noise_on': True},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian-hard-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_hard.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-hard-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_hard.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-hard-input-noise-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_hard.yaml', 'input_noise_on': True},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian-easy-ranges-inverted-v0",
+             entry_point="custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_easy.yaml',
+                     'ranges_inverted': True},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian-hard-ranges-inverted-v0",
+             entry_point="custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian', 'config_file_name': 'config_collect_hard.yaml',
+                     'ranges_inverted': True},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian-hard-10x10-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian',
+                     'config_file_name': 'config_collect_hard_10x10.yaml'},
+             max_episode_steps=500)
+    
+    filename_small = "hard_object_list_10_times_10.csv"
+    filename_small_1 = "hard_object_list_10_times_10_1.csv"
+    filename_collect_easy = "collect_easy_object_list_30_times_40.csv"
+    filename_collect_hard = "collect_hard_object_list_30_times_40.csv"
+    filename_dodge_easy = "dodge_easy_object_list_30_times_40.csv"
+    filename_dodge_hard = "dodge_hard_object_list_30_times_40.csv"
+    
+    list_of_filenames = [filename_small, filename_small_1, filename_collect_easy, filename_collect_hard,
+                         filename_dodge_easy, filename_dodge_hard]
+    dict_of_filename_to_object_dict_list = {}
+    for filename in list_of_filenames:
+        list_of_object_dict_lists = []
+        with open(ROOT_DIR / "moonlander" / filename, "r") as file:
+            lines = csv.reader(file)
+            for line in lines:
+                # first element is index
+                # second element is the object list
+                # form string to list of dictionaries
+                list_of_object_dict_lists.append(ast.literal_eval(line[1]))
+        dict_of_filename_to_object_dict_list[filename] = list_of_object_dict_lists
+    
+    # BENCHMARKS
+    register(id="MoonlanderWorld-collect-gaussian-benchmark-small-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "hard_object_list_10_times_10.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian-benchmark-small-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "hard_object_list_10_times_10.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian-benchmark-easy-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_easy_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian-benchmark-hard-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_hard_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian-benchmark-easy-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "dodge_easy_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian-benchmark-hard-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "dodge_hard_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-easy-benchmark-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_easy.yaml',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_easy_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-easy-input-noise-benchmark-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_easy.yaml', 'input_noise_on': True,
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_easy_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-hard-benchmark-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_hard.yaml',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_hard_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian_with_distance-hard-input-noise-benchmark-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian_with_distance',
+                     'config_file_name': 'config_collect_hard.yaml', 'input_noise_on': True,
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_hard_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    
+    register(id="MetaEnv-v0",
+             entry_point="src.custom_envs.moonlander.meta_env:MetaEnv",
+             kwargs={'reward_function': 'simple'},
+             max_episode_steps=500)
+    register(id="MetaEnv-gaussian-v0",
+             entry_point="src.custom_envs.moonlander.meta_env:MetaEnv",
+             kwargs={'reward_function': 'gaussian'},
+             max_episode_steps=500)
+    register(id="MetaEnv-pos_neg-v0",
+             entry_point="src.custom_envs.moonlander.meta_env:MetaEnv",
+             kwargs={'reward_function': 'pos_neg'},
+             max_episode_steps=500)
+    
+    # FIXME: this one doesn't work at the moment
+    register(id="MetaEnv-pretrained-small-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_best_fm_23_08_rl_model_best",
+                     'collect_best_model_name': "collect_best_fm_23_08_rl_model_best"},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_human_27_09_rl_model_best",
+                     'collect_best_model_name': "collect_human_27_09_rl_model_best"},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-subtask-modelbased-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_MB_reward_included_rl_model_best",
+                     'collect_best_model_name': "collect_reward_in_mb_rl_model_best"},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-subtask-modelbased-switch-as-humans-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_MB_reward_included_rl_model_best",
+                     'collect_best_model_name': "collect_reward_in_mb_rl_model_best",
+                     'can_only_switch_as_often_as_humans': True},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-subtask-modelbased-v0-no-SoC-in-reward",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_MB_reward_included_rl_model_best",
+                     'collect_best_model_name': "collect_reward_in_mb_rl_model_best", 'with_SoC_in_reward': False},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-subtask-modelbased-v0-no-SoC-in-obs",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_MB_reward_included_rl_model_best",
+                     'collect_best_model_name': "collect_reward_in_mb_rl_model_best", 'with_SoC_in_observation': False},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-subtask-modelbased-v0-no-SoC-in-reward-no-SoC-in-obs",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_MB_reward_included_rl_model_best",
+                     'collect_best_model_name': "collect_reward_in_mb_rl_model_best", 'with_SoC_in_reward': False,
+                     'with_SoC_in_observation': False},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-subtask-modelbased-SoC-without-PE-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_MB_reward_included_rl_model_best",
+                     'collect_best_model_name': "collect_reward_in_mb_rl_model_best", "use_prediction_error": False},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-subtask-modelbased-SoC-without-diff-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_MB_reward_included_rl_model_best",
+                     'collect_best_model_name': "collect_reward_in_mb_rl_model_best", "use_need_for_control": False},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-subtask-modelbased-obs-is-SoC-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_MB_reward_included_rl_model_best",
+                     'collect_best_model_name': "collect_reward_in_mb_rl_model_best",
+                     'obs_is_SoC': True},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-subtask-modelbased-reward-good-switch-decision-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_MB_reward_included_rl_model_best",
+                     'collect_best_model_name': "collect_reward_in_mb_rl_model_best",
+                     'reward_good_switch_decision': True},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-two-collect-tasks-easy-easy-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "collect_easy_no_input_noise_15_11_rl_model_best",
+                     'collect_best_model_name': "collect_easy_no_input_noise_15_11_rl_model_best",
+                     'two_collect_task': True,
+                     'config_file_name_dodge_asteroids': "config_collect_easy.yaml",
+                     'config_file_name_collect_asteroids': "config_collect_easy.yaml"},
+             # TODO: use these models when using input noise
+             #              kwargs={'dodge_best_model_name': "collect_easy_input_noise_15_11_rl_model_best",
+             #                      'collect_best_model_name': "collect_easy_input_noise_15_11_rl_model_best"},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-two-collect-tasks-easy-hard-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "collect_easy_no_input_noise_15_11_rl_model_best",
+                     'collect_best_model_name': "collect_hard_no_input_noise_15_11_rl_model_best",
+                     'two_collect_task': True,
+                     'config_file_name_dodge_asteroids': "config_collect_easy.yaml",
+                     'config_file_name_collect_asteroids': "config_collect_hard.yaml"},
+             # TODO: use these models when using input noise
+             #              kwargs={'dodge_best_model_name': "collect_easy_input_noise_15_11_rl_model_best",
+             #                      'collect_best_model_name': "collect_hard_input_noise_15_11_rl_model_best"},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-human-two-collect-tasks-hard-hard-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "collect_hard_no_input_noise_15_11_rl_model_best",
+                     'collect_best_model_name': "collect_hard_no_input_noise_15_11_rl_model_best",
+                     'two_collect_task': True,
+                     'config_file_name_dodge_asteroids': "config_collect_hard.yaml",
+                     'config_file_name_collect_asteroids': "config_collect_hard.yaml"},
+             # TODO: use these models when using input noise
+             #              kwargs={'dodge_best_model_name': "collect_hard_input_noise_15_11_rl_model_best",
+             #                      'collect_best_model_name': "collect_hard_input_noise_15_11_rl_model_best"},
+             max_episode_steps=500)
+    
+    register(id="MetaEnv-pretrained-human-two-collect-tasks-easy-hard-reward-function-paper-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "collect_easy_no_input_noise_15_11_rl_model_best",
+                     'collect_best_model_name': "collect_hard_no_input_noise_15_11_rl_model_best",
+                     'two_collect_task': True, 'reward_function_paper': True,
+                     'config_file_name_dodge_asteroids': "config_collect_easy.yaml",
+                     'config_file_name_collect_asteroids': "config_collect_hard.yaml"},
+             # TODO: use these models when using input noise
+             #              kwargs={'dodge_best_model_name': "collect_easy_input_noise_15_11_rl_model_best",
+             #                      'collect_best_model_name': "collect_hard_input_noise_15_11_rl_model_best"},
+             max_episode_steps=500)
+    
+    register(id="MetaEnv-pretrained-human-two-collect-tasks-easy-hard-reward-is-NfC-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "collect_easy_no_input_noise_15_11_rl_model_best",
+                     'collect_best_model_name': "collect_hard_no_input_noise_15_11_rl_model_best",
+                     'two_collect_task': True, 'reward_is_NfC': True,
+                     'config_file_name_dodge_asteroids': "config_collect_easy.yaml",
+                     'config_file_name_collect_asteroids': "config_collect_hard.yaml"},
+             # TODO: use these models when using input noise
+             #              kwargs={'dodge_best_model_name': "collect_easy_input_noise_15_11_rl_model_best",
+             #                      'collect_best_model_name': "collect_hard_input_noise_15_11_rl_model_best"},
+             max_episode_steps=500)
+    
+    # currently used meta envs
+    register(id="MetaEnv-pretrained-without-SoC-easy-easy-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_easy.yaml",
+                 'consecutive_frames': 5},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-easy-easy-input-noise-in-one-task-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_input_noise_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_easy.yaml",
+                 'consecutive_frames': 5,
+                 'input_noise_in_subtasks_one': True,
+                 'input_noise_in_subtasks_two': False},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-easy-easy-input-noise-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_input_noise_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_easy_input_noise_positions_07_04_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_easy.yaml",
+                 'consecutive_frames': 5,
+                 'input_noise_in_subtasks_one': True,
+                 'input_noise_in_subtasks_two': True},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-easy-hard-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml",
+                 'consecutive_frames': 5},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-easy-hard-input-noise-in-easy-task-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_input_noise_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml",
+                 'consecutive_frames': 5,
+                 'input_noise_in_subtasks_one': True,
+                 'input_noise_in_subtasks_two': False},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-easy-hard-input-noise-in-hard-task-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_input_noise_positions_07_04_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml",
+                 'consecutive_frames': 5,
+                 'input_noise_in_subtasks_one': False,
+                 'input_noise_in_subtasks_two': True},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-easy-hard-input-noise-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_easy_input_noise_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_input_noise_positions_07_04_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_easy.yaml",
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml",
+                 'consecutive_frames': 5,
+                 'input_noise_in_subtasks_one': True,
+                 'input_noise_in_subtasks_two': True},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-hard-hard-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_hard.yaml",
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml",
+                 'consecutive_frames': 5},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-hard-hard-input-noise-in-one-task-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_hard_input_noise_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_positions_31_03_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_hard.yaml",
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml",
+                 'consecutive_frames': 5,
+                 'input_noise_in_subtasks_one': True,
+                 'input_noise_in_subtasks_two': False},
+             max_episode_steps=500
+             )
+    register(id="MetaEnv-pretrained-without-SoC-hard-hard-input-noise-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained_without_soc:MetaEnvPretrainedWithoutSoC",
+             kwargs={
+                 'collect_task_one_best_model_name': "collect_gaussian_with_distance_hard_input_noise_positions_07_04_2025_best_model",
+                 'collect_task_two_best_model_name': "collect_gaussian_with_distance_hard_input_noise_positions_07_04_2025_best_model",
+                 'config_file_name_collect_task_one': "config_collect_hard.yaml",
+                 'config_file_name_collect_task_two': "config_collect_hard.yaml",
+                 'consecutive_frames': 5,
+                 'input_noise_in_subtasks_one': True,
+                 'input_noise_in_subtasks_two': True},
+             max_episode_steps=500
+             )
+    
+    # benchmarks
+    register(id="MetaEnv-pretrained-benchmark-small-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_best_fm_23_08_rl_model_best",
+                     'collect_best_model_name': "collect_best_fm_23_08_rl_model_best",
+                     'dodge_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "hard_object_list_10_times_10.csv"],
+                     'collect_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "hard_object_list_10_times_10_1.csv"]},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-benchmark-easy-easy-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_human_size_hard_rl_model_best",
+                     'collect_best_model_name': "collect_human_size_hard_rl_model_best",
+                     'dodge_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "dodge_easy_object_list_30_times_40.csv"],
+                     'collect_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_easy_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-benchmark-easy-hard-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_human_size_hard_rl_model_best",
+                     'collect_best_model_name': "collect_human_size_hard_rl_model_best",
+                     'dodge_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "dodge_easy_object_list_30_times_40.csv"],
+                     'collect_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_hard_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-benchmark-hard-easy-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_human_size_hard_rl_model_best",
+                     'collect_best_model_name': "collect_human_size_hard_rl_model_best",
+                     'dodge_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "dodge_hard_object_list_30_times_40.csv"],
+                     'collect_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_easy_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    register(id="MetaEnv-pretrained-benchmark-hard-hard-v0",
+             entry_point="src.custom_envs.moonlander.meta_env_pretrained:MetaEnvPretrained",
+             kwargs={'dodge_best_model_name': "dodge_MB_reward_included_rl_model_best",
+                     'collect_best_model_name': "collect_reward_in_mb_rl_model_best",
+                     'dodge_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "dodge_hard_object_list_30_times_40.csv"],
+                     'collect_list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "collect_hard_object_list_30_times_40.csv"]},
+             max_episode_steps=500)
+    
+    register(id="GridworldEnv-v0",
+             entry_point="custom_envs.grid_world.grid_world_env:GridWorldEnv",
+             max_episode_steps=10)
+    register(id="GridworldEnv-v1",
+             entry_point="custom_envs.grid_world.grid_world_env:GridWorldEnv",
+             kwargs={'is_it_possible_that_input_noise_is_applied': True},
+             max_episode_steps=10)
+    register(id="GridworldEnv-v2",
+             entry_point="custom_envs.grid_world.grid_world_env:GridWorldEnv",
+             kwargs={'scene_of_input_noise': True},
+             max_episode_steps=10)
+    
+    register(id="MetaLunarLanderEnv-v0",
+             entry_point="custom_envs.meta_lunar_lander.meta_lunar_lander_env:MetaLunarLanderEnv",
+             max_episode_steps=1000)
+    register(id="MetaLunarLanderEnv-v1",
+             entry_point="custom_envs.meta_lunar_lander.hierarchical_meta_lunar_lander_env:HierarchicalMetaLunarLanderEnv",
+             max_episode_steps=1000)
+    
     for n_objects in range(3):
         register(id=f'Hook-o{n_objects}-v1',
                  entry_point='custom_envs.hook.hook_env:HookEnv',
                  kwargs={'n_objects': n_objects},
                  max_episode_steps=max(50, 100 * n_objects))
-
+        
         register(id=f'ButtonUnlock-o{n_objects}-v1',
                  entry_point='custom_envs.button_unlock.button_unlock_env:ButtonUnlockEnv',
-                 kwargs={'n_buttons': n_objects+1},
-                 max_episode_steps=max(50, 50*n_objects))
-
+                 kwargs={'n_buttons': n_objects + 1},
+                 max_episode_steps=max(50, 50 * n_objects))
+    
     register(
         id='parking-limited-v0',
         entry_point='highway_env.envs:ParkingEnv',
         max_episode_steps=100,
     )
-
+    
     register_metaworld_envs()
 
 
@@ -64,6 +571,7 @@ def register_metaworld_envs():
             sparse - use the MakeDictObs wrapper and sparse rewards
             dense - use the MakeDictObs wrapper and dense rewards
             """
+            
             def make_variable_goal_env(environment_class, environment_type):
                 def variable_goal_env(**kwargs):
                     """
@@ -80,12 +588,55 @@ def register_metaworld_envs():
                     else:
                         raise ValueError(f"unknown environment type {environment_type}")
                     return env
-
+                
                 return variable_goal_env
-
+            
             if env_type == "original":
-                register(id=f"MetaW-{env_name[:-len('-goal-observable')]}", entry_point=make_variable_goal_env(env_class, env_type), max_episode_steps=500)
+                register(id=f"MetaW-{env_name[:-len('-goal-observable')]}",
+                         entry_point=make_variable_goal_env(env_class, env_type), max_episode_steps=500)
             elif env_type == "sparse":
-                register(id=f"MetaW-{env_name[:-len('-goal-observable')]}-sparse", entry_point=make_variable_goal_env(env_class, env_type), max_episode_steps=500)
+                register(id=f"MetaW-{env_name[:-len('-goal-observable')]}-sparse",
+                         entry_point=make_variable_goal_env(env_class, env_type), max_episode_steps=500)
             elif env_type == "dense":
-                register(id=f"MetaW-{env_name[:-len('-goal-observable')]}-dense", entry_point=make_variable_goal_env(env_class, env_type), max_episode_steps=500)
+                register(id=f"MetaW-{env_name[:-len('-goal-observable')]}-dense",
+                         entry_point=make_variable_goal_env(env_class, env_type), max_episode_steps=500)
+
+
+def register_custom_test_envs():
+    filename_small = "hard_object_list_10_times_10.csv"
+    
+    list_of_filenames = [filename_small]
+    dict_of_filename_to_object_dict_list = {}
+    for filename in list_of_filenames:
+        list_of_object_dict_lists = []
+        with open(ROOT_DIR / "moonlander" / filename, "r") as file:
+            lines = csv.reader(file)
+            for line in lines:
+                # first element is index
+                # second element is the object list
+                # form string to list of dictionaries
+                list_of_object_dict_lists.append(ast.literal_eval(line[1]))
+        dict_of_filename_to_object_dict_list[filename] = list_of_object_dict_lists
+    
+    register(id="MoonlanderWorld-dodge-gaussian-hard-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_hard_test.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian-hard-v0",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian',
+                     'config_file_name': 'config_collect_hard_test.yaml'},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-dodge-gaussian-hard-v0-with-object-list",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'dodge', 'reward_function': 'gaussian', 'config_file_name': 'config_dodge_hard_test.yaml',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "hard_object_list_10_times_10.csv"]},
+             max_episode_steps=500)
+    register(id="MoonlanderWorld-collect-gaussian-hard-v0-with-object-list",
+             entry_point="src.custom_envs.moonlander.moonlander_env:MoonlanderWorldEnv",
+             kwargs={'task': 'collect', 'reward_function': 'gaussian',
+                     'config_file_name': 'config_collect_hard_test.yaml',
+                     'list_of_object_dict_lists': dict_of_filename_to_object_dict_list[
+                         "hard_object_list_10_times_10.csv"]},
+             max_episode_steps=500)

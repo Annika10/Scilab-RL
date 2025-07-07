@@ -17,9 +17,44 @@ defaults:
 # TODO: maybe there is a better place to put render_metrics_* because they depend on the
 # algorithm. Maybe put them in the algorithm/xyz.yaml
 render: 'none' # 'display', 'record', or anything else for neither one
-render_freq: 5 # epochs
-render_metrics_train: ['train/rollout_rewards_step']
-render_metrics_test: ['eval/rollout_rewards_step']
+render_freq: 1 # epochs
+render_metrics_train: [
+  # 'train/rollout_rewards_step',
+  #  'train/rollout_rewards_mean',
+  #  'fm/fw_loss',
+  #  'train/predicted_reward',
+  #  'train/predicted_rewards_mean',
+  #  'train/reward_with_future_reward_estimation_corrective',
+  #  'train/reward_with_future_reward_estimation_corrective_mean',
+  # 'train/prediction_error',
+  #  'train/prediction_error_mean',
+  'eval/rollout_rewards_step',
+  'eval/number_of_crashed_or_collected_objects',
+  # 'eval/predicted_rewards',
+  # 'eval/predicted_rewards_mean',
+  #  'eval/reward_with_future_reward_estimation_corrective',
+  #  'eval/prediction_error',
+  'eval/need_for_control',
+  'eval/soc',
+  #  'eval/action',
+  #  'eval/last_position',
+  #  'eval/expected_new_position',
+  #  'eval/predicted_x_position',
+  #  'eval/new_position'
+  # meta env
+  #'train/rollout_rewards_step',
+  #'train/rollout_rewards_mean',
+  #'train/rollout_rewards_dodge_step',
+  #'train/rollout_rewards_dodge_mean',
+  #'train/rollout_rewards_collect_step',
+  #'train/rollout_rewards_collect_mean',
+]
+render_metrics_test: [
+  "eval/SoC_collect_task_one",
+  "eval/SoC_collect_task_two",
+  "eval/prediction_error",
+  "eval/need_for_control",
+]
 render_frames_per_clip: 0 # Number of frames per clip when recording. If set to 0, one episode is recorded.
 
 # If the seed is 0, it will be set to a pseudo-random value (int(time.time()))
@@ -36,7 +71,7 @@ restore_policy: null
 eval_after_n_steps: 2000
 
 # The max. number of training epochs to run. One epoch consists of 'eval_after_n_steps' actions.
-n_epochs: 60
+n_epochs: 10000
 
 # The number of testing rollouts.
 n_test_rollouts: 10
@@ -78,3 +113,21 @@ hydra:
   sweep:
     dir: ${base_logdir}/${git_label:}/${env.name}/${now:%H-%M-%S}
     subdir: ${hydra.job.num}
+
+
+# if the observation is an image
+image_observation: 0
+# if the observation consists of the following possible observations
+model_based: 0
+# if the observation consists of positions instead of images
+positions: 0
+# if the meta agent is based on SoCs in observations and rewards
+soc: 0
+# if the meta agent is based on SoCs only in rewards
+soc_reward_only: 0
+# if the meta agent is based on SoCs only in observations
+soc_obs_only: 0
+# boost value for switching
+boost_value: 0
+# if the prediction error is reversed
+reversed_prediction_error: 0

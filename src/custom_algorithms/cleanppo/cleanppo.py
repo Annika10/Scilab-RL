@@ -17,6 +17,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback
 from stable_baselines3.common.vec_env import VecEnv
 
+from src.custom_algorithms.cleanppofm.utils import flatten_obs
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -27,7 +28,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     return layer
 
 
-def flatten_obs(obs):
+def flatten_obs_old(obs):
     observation, ag, dg = obs['observation'], obs['achieved_goal'], obs['desired_goal']
     if isinstance(observation, np.ndarray):
         observation = torch.from_numpy(observation).to(device)
@@ -141,21 +142,22 @@ class CLEANPPO:
     :param vf_coef: Value function coefficient for the loss calculation
     :param max_grad_norm: The maximum value for the gradient clipping
     """
+
     def __init__(
-        self,
-        env: Union[GymEnv, str],
-        learning_rate: float = 3e-4,
-        n_steps: int = 2048,
-        batch_size: int = 64,
-        n_epochs: int = 10,
-        gamma: float = 0.99,
-        gae_lambda: float = 0.95,
-        clip_range: float = 0.2,
-        clip_range_vf: Union[None, float] = None,
-        normalize_advantage: bool = True,
-        ent_coef: float = 0.0,
-        vf_coef: float = 0.5,
-        max_grad_norm: float = 0.5,
+            self,
+            env: Union[GymEnv, str],
+            learning_rate: float = 3e-4,
+            n_steps: int = 2048,
+            batch_size: int = 64,
+            n_epochs: int = 10,
+            gamma: float = 0.99,
+            gae_lambda: float = 0.95,
+            clip_range: float = 0.2,
+            clip_range_vf: Union[None, float] = None,
+            normalize_advantage: bool = True,
+            ent_coef: float = 0.0,
+            vf_coef: float = 0.5,
+            max_grad_norm: float = 0.5,
     ):
         self.num_timesteps = 0
         self.learning_rate = learning_rate
@@ -185,7 +187,7 @@ class CLEANPPO:
         # because of the advantage normalization
         if normalize_advantage:
             assert (
-                batch_size > 1
+                    batch_size > 1
             ), "`batch_size` must be greater than 1. See https://github.com/DLR-RM/stable-baselines3/issues/440"
 
         # Check that `n_steps * n_envs > 1` to avoid NaN
@@ -204,7 +206,7 @@ class CLEANPPO:
                 f" there will be a truncated mini-batch of size {buffer_size % batch_size}\n"
                 f"We recommend using a `batch_size` that is a factor of `n_steps * n_envs`.\n"
                 f"Info: (n_steps={self.n_steps} and n_envs={self.env.num_envs})"
-                )
+            )
         self.batch_size = batch_size
         self.n_epochs = n_epochs
         self.clip_range = clip_range
@@ -311,10 +313,10 @@ class CLEANPPO:
         self.logger.record("train/explained_variance", explained_var)
 
     def learn(
-        self,
-        total_timesteps: int,
-        callback: MaybeCallback = None,
-        log_interval: int = 1
+            self,
+            total_timesteps: int,
+            callback: MaybeCallback = None,
+            log_interval: int = 1
     ):
         iteration = 0
         self._last_obs = self.env.reset()
@@ -347,10 +349,10 @@ class CLEANPPO:
         return self
 
     def collect_rollouts(
-        self,
-        env: VecEnv,
-        callback: BaseCallback,
-        rollout_buffer: RolloutBuffer,
+            self,
+            env: VecEnv,
+            callback: BaseCallback,
+            rollout_buffer: RolloutBuffer,
     ) -> bool:
         """
         Collect experiences using the current policy and fill a ``RolloutBuffer``.
@@ -389,6 +391,14 @@ class CLEANPPO:
             new_obs, rewards, dones, infos = env.step(clipped_actions)
             self.logger.record("train/rollout_rewards_step", float(rewards.mean()))
             self.logger.record_mean("train/rollout_rewards_mean", float(rewards.mean()))
+
+            # log rewards of dodge and collect
+            if "reward_dodge" in infos[0]:
+                self.logger.record("train/rollout_rewards_dodge_step", infos[0]["reward_dodge"])
+                self.logger.record_mean("train/rollout_rewards_dodge_mean", infos[0]["reward_dodge"])
+            if "reward_collect" in infos[0]:
+                self.logger.record("train/rollout_rewards_collect_step", infos[0]["reward_collect"])
+                self.logger.record_mean("train/rollout_rewards_collect_mean", infos[0]["reward_collect"])
             self.num_timesteps += env.num_envs
 
             # Give access to local variables
@@ -406,9 +416,9 @@ class CLEANPPO:
             # see GitHub issue #633
             for idx, done in enumerate(dones):
                 if (
-                    done
-                    and infos[idx].get("terminal_observation") is not None
-                    and infos[idx].get("TimeLimit.truncated", False)
+                        done
+                        and infos[idx].get("terminal_observation") is not None
+                        and infos[idx].get("TimeLimit.truncated", False)
                 ):
                     terminal_obs = infos[idx]["terminal_observation"]
                     with torch.no_grad():
@@ -463,7 +473,7 @@ class CLEANPPO:
     @classmethod
     def load(cls, path, env, **kwargs):
         model = cls(env=env, **kwargs)
-        loaded_dict = torch.load(path)
+        loaded_dict = torch.load(path, map_location=torch.device(device))
         for k in loaded_dict:
             if k not in ["_policy"]:
                 model.__dict__[k] = loaded_dict[k]
