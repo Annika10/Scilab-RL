@@ -16,7 +16,7 @@ How to configure [Pycharm](Pycharm) for this project.
 How to [run a standard algorithm](Run-a-standard-algorithm)(SAC with Hindsight Experience Replay from stable baselines 3) and interpret the console output. This is also a good starting point for checking out 
 other tutorials.
 
-How to [visualize and render](Visualization).
+How to [visualize and render](Online-metric-visualization).
 
 How to [manage hyperparameters and arguments with Hydra](Hyperparameter-management-with-Hydra).
 
@@ -37,6 +37,8 @@ How to [set up and perform a performance test](Performance-tests).
 How to [set up and perform a smoke test](Smoke-tests).
 
 How to [add a new robotic environment](Adding-a-new-Environment).
+
+How to [equip an algorithm with a forward model](Equip_rl-algo_with_forward_model).
 
 # Further information
 

@@ -1,19 +1,14 @@
-name: 'cleansacmc'
+name: 'cleansac_fw'
 
-learning_rate: 0.0004
+learning_rate: 0.0003
 buffer_size: 1_000_000
 learning_starts: 1000
-batch_size: 1024
-tau: 0.05
-gamma: 0.95
+batch_size: 256
+tau: 0.005
+gamma: 0.99
 ent_coef: auto
 use_her: True
 n_critics: 2
-mc_alpha: 0.2 # Scalar of MC Reward # Setting mc_alpha -> a will result in the rest of the reward
-             # to have the scale (1-a)
-max_percentile: 98 # For Kld normalizing to avoid impact of outliers
-min_percentile: 1
-mc_lr: 0.0004
 
 # Whether to set future expected discounted cumulative reward to what the critic
 # computes or to just set it to 0 if the episode is done. The SB3 implementation sets it to 0 if done,
@@ -23,14 +18,23 @@ ignore_dones_for_qvalue: False
 # Usually, the action scale is determined by the action space of the environment. Sometimes, however, it is
 # desireable to not max out the full scale and reduce the action intensity. For this purpose,
 # action_scale_factor is multiplied with the action space of the environment.
-action_scale_factor: 0.4 # Adapt to environment. E.g.: 0.4 for Ant/Maze and 1.0 for Fetch environments.
+action_scale_factor: 1.0
 
 # Whether to log each observation and action dimension in each step. This might slow down everything, but it can help
 # debugging because it logs each action and observation dimension per step. It only holds for training, not for eval.
 log_obs_step: False
 log_act_step: False
 
-# The normalization bounds for the intrinsic mc-based rewards. 
-# They should be the same as the rewards coming from the environment.
-set_min_norm: -1
-set_max_norm: 0
+fwd:
+  #  Parameters for the forward model
+  hidden_size: 128
+  n_hidden_layers : 2
+  activation_func : 'relu'  # can be 'relu', 'tanh' or 'logistic'
+  loss_func : 'l2'  # for deterministic models, use l2; for probabilisticMLE model use nll. You can implement your desired loss in src.utils.forward_models.py
+  fw_batch_size : 256
+  fw_learning_rate : 0.0001
+  train_every_n_data : 2000  # can be set to 1 for algos that already train only in every k'th step
+  ensemble_size : 3
+  predict_reward: 1 # can be set to 0 if you don't want to predict the reward, but only the next state
+  model_save_path : 'your/path/here'
+  pre_train_data_path : 'your/path/here'

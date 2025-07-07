@@ -6,64 +6,7 @@ import ast
 from src.custom_envs import ROOT_DIR
 from gymnasium.envs.registration import register
 from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
-from src.utils.custom_wrappers import MakeDictObs
-
-RESET = R = "r"  # Initial Reset position of the agent
-GOAL = G = "g"
-COMBINED = C = "c"  # These cells can be selected as goal or reset locations
-
-
-class MazeMap:
-    OPEN = [
-        [1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1],
-    ]
-    OPEN_DIVERSE_G = [
-        [1, 1, 1, 1, 1, 1, 1],
-        [1, R, G, G, G, G, 1],
-        [1, G, G, G, G, G, 1],
-        [1, G, G, G, G, G, 1],
-        [1, 1, 1, 1, 1, 1, 1],
-    ]
-    OPEN_DIVERSE_GR = [
-        [1, 1, 1, 1, 1, 1, 1],
-        [1, C, C, C, C, C, 1],
-        [1, C, C, C, C, C, 1],
-        [1, C, C, C, C, C, 1],
-        [1, 1, 1, 1, 1, 1, 1],
-    ]
-    SMALL_OPEN_DIVERSE_GR = [
-        [1, 1, 1, 1, 1],
-        [1, C, C, C, 1],
-        [1, C, C, C, 1],
-        [1, C, C, C, 1],
-        [1, 1, 1, 1, 1],
-    ]
-    SMALL_OPEN_DIVERSE_G = [
-        [1, 1, 1, 1, 1],
-        [1, G, G, G, 1],
-        [1, G, G, G, 1],
-        [1, G, G, G, 1],
-        [1, 1, 1, 1, 1],
-    ]
-    MEDIUM_CUSTOM_DIVERSE_GR = [[1, 1, 1, 1, 1, 1, 1, 1],
-                                [1, C, C, 1, 1, C, C, 1],
-                                [1, C, C, 1, C, C, C, 1],
-                                [1, 1, C, C, C, 1, 1, 1],
-                                [1, C, C, 1, C, C, C, 1],
-                                [1, C, 1, C, C, 1, C, 1],
-                                [1, C, C, C, 1, C, C, 1],
-                                [1, 1, 1, 1, 1, 1, 1, 1]]
-    name2map = {"open": OPEN,
-                "open_dg": OPEN_DIVERSE_G,
-                "open_dgr": OPEN_DIVERSE_GR,
-                "small_open_dg": SMALL_OPEN_DIVERSE_G,
-                "small_open_dgr": SMALL_OPEN_DIVERSE_GR,
-                "medium_custom_dgr": MEDIUM_CUSTOM_DIVERSE_GR,
-                }
+from utils.custom_wrappers import MakeDictObs
 
 
 def _merge(a, b):
@@ -72,68 +15,13 @@ def _merge(a, b):
 
 
 def register_custom_envs():
-    for n_objects in range(5):
-        for gripper_goal in ['gripper_none', 'gripper_random', 'gripper_above']:
-            if gripper_goal != 'gripper_random' and n_objects == 0:  # Disallow because there would be no goal
-                continue
-            distance_threshold = 0.05  # was originally 0.05
-            register(id=f'Blocks-o{n_objects}-{gripper_goal}-v1',
-                     entry_point='custom_envs.blocks.blocks_env:BlocksEnv',
-                     kwargs={'n_objects': n_objects, 'gripper_goal': gripper_goal,
-                             'distance_threshold': distance_threshold},
-                     max_episode_steps=max(50, 50 * n_objects))
-    
     ## Custom Ant environments
-    for reward_type in ["sparse", "sparseneg", "dense"]:
-        for fs in [5, 10, 15, 20]:
-            for dt in [0.5, 1.0, 1.5]:
-                for map in MazeMap.name2map.keys():
-                    for continuing_task in [1, 0]:
-                        for reset_target in [1, 0]:
-                            for max_ep_Steps in [300, 500, 700]:
-                                kwargs = {
-                                    "reward_type": reward_type,
-                                    'frame_skip': fs,
-                                    "distance_threshold": dt,
-                                    "maze_map": MazeMap.name2map[map],
-                                    "continuing_task": continuing_task,
-                                    "reset_target": reset_target,
-                                }
-                                register(
-                                    id=f'AntGym-{reward_type}-{fs}-{dt}-{map}-c{continuing_task}-rt{reset_target}-s{max_ep_Steps}-v0',
-                                    entry_point='custom_envs.maze.ant_env:AntGymMod',
-                                    kwargs=kwargs,
-                                    max_episode_steps=max_ep_Steps,
-                                )
+    register(id="AntGym", entry_point='custom_envs.maze.ant_env:AntGymMod', max_episode_steps=300, )
+    
     ## Custom PointMaze environments
-    for reward_type in ["sparse", "sparseneg", "dense"]:
-        for dt in [0.5, 1.0, 1.5]:
-            for map in MazeMap.name2map.keys():
-                for continuing_task in [1, 0]:
-                    for reset_target in [1, 0]:
-                        for max_ep_Steps in [300, 500, 700]:
-                            kwargs = {
-                                "reward_type": reward_type,
-                                "distance_threshold": dt,
-                                "maze_map": MazeMap.name2map[map],
-                                "continuing_task": continuing_task,
-                                "reset_target": reset_target,
-                            }
-                            register(
-                                id=f'PointGym-{reward_type}-{dt}-{map}-c{continuing_task}-rt{reset_target}-s{max_ep_Steps}-v0',
-                                entry_point='custom_envs.maze.point_env:PointGymMod',
-                                kwargs=kwargs,
-                                max_episode_steps=max_ep_Steps,
-                            )
-                            for n_obj in range(5):
-                                obj_kwargs = kwargs.copy()
-                                obj_kwargs['n_objects'] = n_obj
-                                register(
-                                    id=f'PointObjGym-{reward_type}-o{n_obj}-{dt}-{map}-c{continuing_task}-rt{reset_target}-s{max_ep_Steps}-v0',
-                                    entry_point='custom_envs.maze.point_obj_env:PointObjEnv',
-                                    kwargs=obj_kwargs,
-                                    max_episode_steps=max_ep_Steps,
-                                )
+    register(id='PointGym', entry_point='custom_envs.maze.point_env:PointGymMod', max_episode_steps=300, )
+    register(id='PointObjGym', entry_point='custom_envs.maze.point_obj_env:PointObjEnv', max_episode_steps=300, )
+    
     # kwargs = {
     #     "reward_type": reward_type,
     #     "distance_threshold": 0.45,

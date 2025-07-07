@@ -41,17 +41,13 @@ test_envs() {
   ENVS+="FetchReach-v2,"
   ENVS+="FetchPickAndPlace-v2,"
   ENVS+="HandManipulateBlock-v1,"
-  ENVS+="Hook-o1-v1,"
-  ENVS+="ButtonUnlock-o2-v1,"
-  ENVS+="Blocks-o0-gripper_random-v1,"
-  ENVS+="Blocks-o3-gripper_none-v1,"
-  ENVS+="Reach1DOF-v0,"
   # ADD NEW ENVIRONMENTS HERE.
   # Don't forget to add a comma at the end of each environment name except for the last environment name.
   ENVS+="parking-limited-v0,"
-  ENVS+="PointGym-sparse-0.5-small_open_dgr-c1-rt0-s500-v0,"
-  ENVS+="AntGym-sparse-10-0.5-small_open_dgr-c1-rt0-s700-v0,"
+  ENVS+="PointGym,"
+  ENVS+="AntGym,"
   ENVS+="MetaW-peg-insert-side-v2-sparse"
+
 
   echo "Smoke-testing environments $ENVS"
 
@@ -61,6 +57,7 @@ test_envs() {
     exit 1
   fi
 }
+
 test_algos
 test_envs
 echo "All smoke tests passed successfully."

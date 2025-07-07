@@ -10,3 +10,5 @@ delete_me_to_stop_hyperopt
 .DS_Store
 *.db
 policies*/
+.vscode/
+*.pyc

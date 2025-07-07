@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import importlib
 import hydra
@@ -19,28 +20,19 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from src.custom_envs.register_envs import register_custom_envs
 from src.utils.util import get_git_label, set_global_seeds, get_train_render_schedule, get_eval_render_schedule, \
     avoid_start_learn_before_first_episode_finishes
-from src.utils.mlflow_util import setup_mlflow, get_hyperopt_score, log_params_from_omegaconf_dict
-from src.utils.custom_logger import setup_logger
-from src.utils.custom_callbacks import EarlyStopCallback, EvalCallback, EvalCallbackMoonlander, \
-    CustomEvalCallbackMetaAgent, EvalCallbackMetaAgentNew
-from src.utils.custom_wrappers import DisplayWrapper, RecordVideo
-from src.custom_envs.moonlander.image_wrapper import ImageWrapperEnv
-from src.custom_envs.moonlander.model_based_wrapper import ModelBasedWrapperEnv
-from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
-from src.custom_envs.moonlander.positions_model_based_wrapper import PositionsModelBasedWrapperEnv
-from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
-from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
-from src.custom_envs.moonlander.meta_env_pretrained_with_soc_observation_only_wrapper import SoCObsOnlyWrapperEnv
-from src.custom_envs.moonlander.meta_env_pretrained_with_switching_boost import SwitchingBoostWrapperEnv
-from src.custom_algorithms.ppo_moonlander.custom_cnn import CustomCNN
+from utils.mlflow_util import setup_mlflow, get_hyperopt_score, log_params_from_omegaconf_dict
+from utils.custom_logger import setup_logger
+from utils.custom_callbacks import EarlyStopCallback, EvalCallback
+from utils.custom_wrappers import DisplayWrapper, RecordVideo
+import yaml
 
 # make git_label available in hydra
 OmegaConf.register_new_resolver("git_label", get_git_label)
 
 
 def get_env_instance(cfg, logger):
-    train_env = gym.make(cfg.env, **cfg.env_kwargs)
-    eval_env = gym.make(cfg.env, **cfg.env_kwargs)
+    train_env = gym.make(cfg.env.name, **cfg.env.env_kwargs)
+    eval_env = gym.make(cfg.env.name, **cfg.env.env_kwargs)
     
     # wrappers for rendering
     train_render_schedule = get_train_render_schedule(cfg.render_freq)
@@ -228,9 +220,21 @@ def main(cfg: DictConfig) -> (float, int):
     if cfg.restore_policy is not None:
         run_dir = os.path.split(cfg.restore_policy)[:-1][0]
         run_dir = run_dir + "_restored"
-    run_name = cfg['algorithm']['name'] + '_' + cfg['env']
+    
+    run_name = cfg['algorithm']['name'] + '_' + cfg['env']['name']
     
     register_custom_envs()
+    
+    if cfg.env.name not in gym.envs.registration.registry:
+        original_cwd = hydra.core.hydra_config.HydraConfig.get().runtime.cwd
+        env_yaml_path = os.path.join(original_cwd, "conf", "env", f"{cfg.env.name}.yaml")
+        if os.path.exists(env_yaml_path):
+            os.remove(env_yaml_path)
+        raise RuntimeError(
+            f"\n Environment '{cfg.env.name}' is not registered in Gym.\n"
+            f" Tip: Did you forget to register the environment?\n"
+        )
+    
     setup_mlflow(cfg)
     
     with mlflow.start_run(run_name=run_name) as mlflow_run:
@@ -288,5 +292,39 @@ def main(cfg: DictConfig) -> (float, int):
     return hyperopt_score, n_epochs, run_id
 
 
+def generate_empty_yaml(env_name):
+    conf_dir = os.path.join(os.getcwd(), "conf", "env")
+    os.makedirs(conf_dir, exist_ok=True)
+    yaml_path = os.path.join(conf_dir, f"{env_name}.yaml")
+    if not os.path.exists(yaml_path):
+        with open(yaml_path, 'w') as yaml_file:
+            yaml.dump({"name": env_name, "env_kwargs": {}}, yaml_file, sort_keys=False)
+            yaml_file.flush()
+        print(f"Generated empty YAML file at: {yaml_path}")
+    else:
+        print(f"YAML file already exists at: {yaml_path}")
+
+
 if __name__ == '__main__':
+    # Ensure we're in the project root
+    marker_dirs = ("conf", "src", "scripts")
+    if not all(os.path.isdir(d) for d in marker_dirs):
+        raise RuntimeError(
+            f"\n This script must be run from the project root directory.\n"
+            f" Required folders not found: {marker_dirs}\n"
+            f" Current directory: {os.getcwd()}"
+        )
+    
+    # Find and parse env= override (support sweep)
+    envs = []
+    for arg in sys.argv:
+        if arg.startswith("env="):
+            # Support comma-separated list: env=A,B,C
+            envs = arg.split("=", 1)[1].split(",")
+            break
+    
+    for env in envs:
+        generate_empty_yaml(env)
+    
+    # Import and run your Hydra main
     main()
