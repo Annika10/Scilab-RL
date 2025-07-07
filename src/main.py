@@ -21,10 +21,21 @@ from src.custom_envs.register_envs import register_custom_envs
 from src.utils.util import get_git_label, set_global_seeds, get_train_render_schedule, get_eval_render_schedule, \
     avoid_start_learn_before_first_episode_finishes
 from utils.mlflow_util import setup_mlflow, get_hyperopt_score, log_params_from_omegaconf_dict
-from utils.custom_logger import setup_logger
-from utils.custom_callbacks import EarlyStopCallback, EvalCallback
-from utils.custom_wrappers import DisplayWrapper, RecordVideo
+
 import yaml
+from src.utils.custom_logger import setup_logger
+from src.utils.custom_callbacks import EarlyStopCallback, EvalCallback, EvalCallbackMoonlander, \
+    CustomEvalCallbackMetaAgent, EvalCallbackMetaAgentNew
+from src.utils.custom_wrappers import DisplayWrapper, RecordVideo
+from src.custom_envs.moonlander.image_wrapper import ImageWrapperEnv
+from src.custom_envs.moonlander.model_based_wrapper import ModelBasedWrapperEnv
+from src.custom_envs.moonlander.positions_wrapper import PositionsWrapperEnv
+from src.custom_envs.moonlander.positions_model_based_wrapper import PositionsModelBasedWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_wrapper import SoCObsAndRewardWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_reward_only_wrapper import SoCRewardOnlyWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_soc_observation_only_wrapper import SoCObsOnlyWrapperEnv
+from src.custom_envs.moonlander.meta_env_pretrained_with_switching_boost import SwitchingBoostWrapperEnv
+from src.custom_algorithms.ppo_moonlander.custom_cnn import CustomCNN
 
 # make git_label available in hydra
 OmegaConf.register_new_resolver("git_label", get_git_label)
@@ -182,19 +193,19 @@ def create_callbacks(cfg, logger, eval_env):
         checkpoint_callback = CheckpointCallback(save_freq=cfg.save_model_freq, save_path=logger.get_dir(), verbose=1)
         callback.append(checkpoint_callback)
     
-    if cfg['env'].startswith('Moonlander'):
+    if cfg['env']['name'].startswith('Moonlander'):
         eval_callback = EvalCallbackMoonlander(eval_env, n_eval_episodes=cfg.n_test_rollouts,
                                                eval_freq=cfg.eval_after_n_steps,
                                                log_path=logger.get_dir(), best_model_save_path=logger.get_dir(),
                                                render=False,
                                                warn=False)
-    elif cfg['env'].startswith('MetaEnv-pretrained-without-SoC'):
+    elif cfg['env']['name'].startswith('MetaEnv-pretrained-without-SoC'):
         eval_callback = EvalCallbackMetaAgentNew(eval_env, n_eval_episodes=cfg.n_test_rollouts,
                                                  eval_freq=cfg.eval_after_n_steps,
                                                  log_path=logger.get_dir(), best_model_save_path=logger.get_dir(),
                                                  render=False,
                                                  warn=False)
-    elif cfg['env'].startswith('MetaEnv'):
+    elif cfg['env']['name'].startswith('MetaEnv'):
         eval_callback = CustomEvalCallbackMetaAgent(eval_env, n_eval_episodes=cfg.n_test_rollouts,
                                                     eval_freq=cfg.eval_after_n_steps,
                                                     log_path=logger.get_dir(), best_model_save_path=logger.get_dir(),

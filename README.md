@@ -18,7 +18,6 @@ The statistical analysis of the agents can be found in a [jupyter notebook](http
 Please refer to
 the [installation script](https://github.com/Scilab-RL/Scilab-RL?tab=readme-ov-file#getting-started-using-the-setup-script)
 of the original repository.
-Additionally, MISSING
 
 ## Relevant files
 
