@@ -6,7 +6,7 @@ import ast
 from src.custom_envs import ROOT_DIR
 from gymnasium.envs.registration import register
 from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
-from utils.custom_wrappers import MakeDictObs
+from src.utils.custom_wrappers import MakeDictObs
 
 
 def _merge(a, b):
