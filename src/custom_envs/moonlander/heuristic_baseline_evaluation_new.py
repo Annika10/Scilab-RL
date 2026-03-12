@@ -629,8 +629,11 @@ if __name__ == "__main__":
         filepath_for_storage = directory / f"collect_{task_one_difficulty}_{task_two_difficulty}{input_noise_string}_soc_switching.csv"
     elif mode == "switch_per_percentage":
         filepath_for_storage = directory / f"collect_{task_one_difficulty}_{task_two_difficulty}{input_noise_string}_percentage_pairs.csv"
-    else:
+    elif mode == "switch_every_frame":
         filepath_for_storage = directory / f"collect_{task_one_difficulty}_{task_two_difficulty}{input_noise_string}_switch_every_frame.csv"
+    else:
+        raise ValueError(
+            "Invalid mode. Please select one of the following: 'SoC_switching', 'switch_per_percentage', 'switch_every_frame'.")
     
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -645,7 +648,8 @@ if __name__ == "__main__":
                          "Mean number of collect task one actions", "Std number of collect task one actions",
                          "Mean number of collect task two actions", "Std number of collect task two actions",
                          "Episode rewards",
-                         "Episode number of collected objects task one", "Episode number of collected objects task two",
+                         "Episode number of collected objects task one",
+                         "Episode number of collected objects task two",
                          "Episode number of switches", "Episode number of collect task one actions",
                          "Episode number of collect task two actions",
                          "Episode number of consecutive actions in task one",
