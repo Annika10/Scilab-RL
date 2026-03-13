@@ -52,6 +52,8 @@ class PositionsWrapperEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         state, info = self.env.reset()
+        # always update the wrapper attributes in case they have changed due to reset
+        self.object_dict_list = self.env.object_dict_list
         # squeeze to remove a dimension because we have no batches but one step
         # numpy because gymnasium.Box does not accept torch tensors
         position_state = get_position_and_object_positions_of_observation(

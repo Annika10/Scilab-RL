@@ -136,11 +136,6 @@ class MetaEnvPretrainedWithoutSoC(gym.Env):
         self.state_of_collect_task_one = self.trained_collect_task_one.env.reset()
         self.state_of_collect_task_two = self.trained_collect_task_two.env.reset()
         
-        self.object_dict_list_task_one = \
-            self.trained_collect_task_one.env.env_method("get_wrapper_attr", "object_dict_list")[0]
-        self.object_dict_list_task_two = \
-            self.trained_collect_task_two.env.env_method("get_wrapper_attr", "object_dict_list")[0]
-        
         # because both tasks use the same configuration, we can use one of them
         self.observation_width = self.trained_collect_task_one.env.env_method("get_wrapper_attr", "observation_width")[
             0]
