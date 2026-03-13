@@ -36,6 +36,9 @@ class SoCObsAndRewardWrapperEnv(gym.Env):
         
         self.state = np.array([self.env.SoC_collect_task_one, self.env.SoC_collect_task_two])
         
+        info["SoC_collect_task_one"] = self.env.SoC_collect_task_one
+        info["SoC_collect_task_two"] = self.env.SoC_collect_task_two
+        
         return self.state, reward_soc, done, truncated, info
     
     def render(self):

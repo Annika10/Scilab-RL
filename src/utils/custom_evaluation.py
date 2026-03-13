@@ -250,6 +250,8 @@ def evaluate_policy_meta_agent_new(
     episode_mean_distance_to_visible_objects_when_not_switching_task_one = []
     episode_mean_distance_to_visible_objects_when_switching_task_two = []
     episode_mean_distance_to_visible_objects_when_not_switching_task_two = []
+    episode_socs_of_task_one = []
+    episode_socs_of_task_two = []
     # dict in list
     episode_true_if_it_was_switched = []
     ###
@@ -277,6 +279,8 @@ def evaluate_policy_meta_agent_new(
     current_mean_distance_to_visible_objects_when_not_switching_task_one = []
     current_mean_distance_to_visible_objects_when_switching_task_two = []
     current_mean_distance_to_visible_objects_when_not_switching_task_two = []
+    current_soc_of_task_one = []
+    current_soc_of_task_two = []
     # dict
     current_true_if_it_was_switched = {}
     
@@ -302,6 +306,9 @@ def evaluate_policy_meta_agent_new(
         ### added by me
         current_number_of_collected_objects_task_one += infos[0]["collect_task_one_collected_objects"]
         current_number_of_collected_objects_task_two += infos[0]["collect_task_two_collected_objects"]
+        
+        current_soc_of_task_one.append(infos[0]["SoC_collect_task_one"])
+        current_soc_of_task_two.append(infos[0]["SoC_collect_task_two"])
         
         if not (last_action == actions).item():
             current_number_of_switches += 1
@@ -464,6 +471,8 @@ def evaluate_policy_meta_agent_new(
                     episode_mean_distance_to_visible_objects_when_not_switching_task_two.append(
                         current_mean_distance_to_visible_objects_when_not_switching_task_two)
                     episode_true_if_it_was_switched.append(current_true_if_it_was_switched)
+                    episode_socs_of_task_one.append(current_soc_of_task_one)
+                    episode_socs_of_task_two.append(current_soc_of_task_two)
                     ###
                     
                     current_rewards[i] = 0
@@ -485,6 +494,8 @@ def evaluate_policy_meta_agent_new(
                     current_mean_distance_to_visible_objects_when_not_switching_task_one = []
                     current_mean_distance_to_visible_objects_when_switching_task_two = []
                     current_mean_distance_to_visible_objects_when_not_switching_task_two = []
+                    current_soc_of_task_one = []
+                    current_soc_of_task_two = []
                     # dict
                     current_true_if_it_was_switched = {}
                     ###
@@ -516,7 +527,9 @@ def evaluate_policy_meta_agent_new(
                 episode_mean_distance_to_visible_objects_when_not_switching_task_one,
                 episode_mean_distance_to_visible_objects_when_switching_task_two,
                 episode_mean_distance_to_visible_objects_when_not_switching_task_two,
-                episode_true_if_it_was_switched)
+                episode_true_if_it_was_switched,
+                episode_socs_of_task_one,
+                episode_socs_of_task_two)
     return mean_reward, std_reward
 
 

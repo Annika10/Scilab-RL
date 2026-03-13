@@ -423,6 +423,8 @@ class EvalCallbackMetaAgentNew(EvalCallback):
         self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_one: list[list[int]] = []
         self.evaluations_mean_distance_to_visible_objects_when_switching_task_two: list[list[int]] = []
         self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_two: list[list[int]] = []
+        self.evaluations_mean_soc_task_one: list[list[int]] = []
+        self.evaluations_mean_soc_task_two: list[list[int]] = []
         
         # get configurations, cut off .yaml, difficulties = str, input noise = bool
         difficulty_task_one = eval_env.env_method("get_wrapper_attr", "env")[0].env.spec.kwargs[
@@ -487,7 +489,11 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                              "Episode mean distance to visible objects when not switching task one",
                              "Episode mean distance to visible objects when switching task two",
                              "Episode mean distance to visible objects when not switching task two",
-                             "Episode true if it was switched"])
+                             "Episode true if it was switched",
+                             "Episode SoC of task one",
+                             "Episode SoC of task two",
+                             "Mean SoC of task one per Episode", "Std SoC of task one per Episode",
+                             "Mean SoC of task two per Episode", "Std SoC of task two per Episode"])
         ###
     
     def _on_step(self) -> bool:
@@ -526,7 +532,9 @@ class EvalCallbackMetaAgentNew(EvalCallback):
              episode_mean_distance_to_visible_objects_when_not_switching_task_one,
              episode_mean_distance_to_visible_objects_when_switching_task_two,
              episode_mean_distance_to_visible_objects_when_not_switching_task_two,
-             episode_true_if_it_was_switched) = evaluate_policy_meta_agent_new(
+             episode_true_if_it_was_switched,
+             episode_socs_of_task_one,
+             episode_socs_of_task_two) = evaluate_policy_meta_agent_new(
                 self.model,
                 self.eval_env,
                 n_eval_episodes=self.n_eval_episodes,
@@ -558,6 +566,8 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                 assert isinstance(episode_mean_distance_to_visible_objects_when_not_switching_task_one, list)
                 assert isinstance(episode_mean_distance_to_visible_objects_when_switching_task_two, list)
                 assert isinstance(episode_mean_distance_to_visible_objects_when_not_switching_task_two, list)
+                assert isinstance(episode_socs_of_task_one, list)
+                assert isinstance(episode_socs_of_task_two, list)
                 ###
                 self.evaluations_timesteps.append(self.num_timesteps)
                 self.evaluations_results.append(episode_rewards)
@@ -590,6 +600,8 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                     episode_mean_distance_to_visible_objects_when_switching_task_two)
                 self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_two.append(
                     episode_mean_distance_to_visible_objects_when_not_switching_task_two)
+                self.evaluations_mean_soc_task_one.append(episode_socs_of_task_one)
+                self.evaluations_mean_soc_task_two.append(episode_socs_of_task_two)
                 ###
                 
                 kwargs = {}
@@ -641,6 +653,8 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                                                                                   in
                                                                                   self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_two[
                                                                                       0]],
+                    mean_soc_task_one=[np.mean(current_list) for current_list in self.evaluations_mean_soc_task_one[0]],
+                    mean_soc_task_two=[np.mean(current_list) for current_list in self.evaluations_mean_soc_task_two[0]],
                     ###
                     **kwargs,  # type: ignore[arg-type]
                 )
@@ -726,6 +740,14 @@ class EvalCallbackMetaAgentNew(EvalCallback):
             mean_mean_distance_to_visible_objects_when_not_switching_task_two, std_mean_distance_to_visible_objects_when_not_switching_task_two = np.mean(
                 mean_episode_mean_distance_to_visible_objects_when_not_switching_task_two), np.std(
                 mean_episode_mean_distance_to_visible_objects_when_not_switching_task_two)
+            mean_soc_task_one, std_soc_task_one = ([np.mean(current_list) for current_list in
+                                                    self.evaluations_mean_soc_task_one[0]],
+                                                   [np.std(current_list) for current_list in
+                                                    self.evaluations_mean_soc_task_two[0]])
+            mean_soc_task_two, std_soc_task_two = ([np.mean(current_list) for current_list in
+                                                    self.evaluations_mean_soc_task_two[0]],
+                                                   [np.std(current_list) for current_list in
+                                                    self.evaluations_mean_soc_task_two[0]])
             ###
             self.last_mean_reward = float(mean_reward)
             
@@ -763,6 +785,8 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                     f"Mean distance to visible objects when switching task two: {mean_mean_distance_to_visible_objects_when_switching_task_two:.2f} +/- {std_mean_distance_to_visible_objects_when_switching_task_two:.2f}")
                 print(
                     f"Mean distance to visible objects when not switching task two: {mean_mean_distance_to_visible_objects_when_not_switching_task_two:.2f} +/- {std_mean_distance_to_visible_objects_when_not_switching_task_two:.2f}")
+                print(f"Mean SoC task one: {mean_soc_task_one} +/- {std_soc_task_one}")
+                print(f"Mean SoC task two: {mean_soc_task_two} +/- {std_soc_task_two}")
                 with open(self.filepath_for_storage, "a") as file:
                     writer = csv.writer(file)
                     writer.writerow(
@@ -788,7 +812,11 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                          episode_mean_distance_to_visible_objects_when_not_switching_task_one,
                          episode_mean_distance_to_visible_objects_when_switching_task_two,
                          episode_mean_distance_to_visible_objects_when_not_switching_task_two,
-                         episode_true_if_it_was_switched
+                         episode_true_if_it_was_switched,
+                         episode_socs_of_task_one,
+                         episode_socs_of_task_two,
+                         mean_soc_task_one, std_soc_task_one,
+                         mean_soc_task_two, std_soc_task_two
                          ])
                 ###
             # Add to current Logger
