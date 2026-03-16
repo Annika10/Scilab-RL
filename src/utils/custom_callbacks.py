@@ -621,6 +621,7 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                     number_of_switches=self.evaluations_number_of_switches,
                     number_of_task_one_actions=self.evaluations_number_of_task_one_actions,
                     number_of_task_two_actions=self.evaluations_number_of_task_two_actions,
+                    # FIXME: this seems to be wrong? Please check
                     number_of_consecutive_actions_in_task_one=[np.mean(current_list) for current_list in
                                                                self.evaluations_number_of_consecutive_actions_in_task_one[
                                                                    0]],
@@ -653,8 +654,10 @@ class EvalCallbackMetaAgentNew(EvalCallback):
                                                                                   in
                                                                                   self.evaluations_mean_distance_to_visible_objects_when_not_switching_task_two[
                                                                                       0]],
-                    mean_soc_task_one=[np.mean(current_list) for current_list in self.evaluations_mean_soc_task_one[0]],
-                    mean_soc_task_two=[np.mean(current_list) for current_list in self.evaluations_mean_soc_task_two[0]],
+                    mean_soc_task_one=[[np.mean(sub_element) for sub_element in element] for element in
+                                       self.evaluations_mean_soc_task_one],
+                    mean_soc_task_two=[[np.mean(sub_element) for sub_element in element] for element in
+                                       self.evaluations_mean_soc_task_two],
                     ###
                     **kwargs,  # type: ignore[arg-type]
                 )
@@ -740,14 +743,12 @@ class EvalCallbackMetaAgentNew(EvalCallback):
             mean_mean_distance_to_visible_objects_when_not_switching_task_two, std_mean_distance_to_visible_objects_when_not_switching_task_two = np.mean(
                 mean_episode_mean_distance_to_visible_objects_when_not_switching_task_two), np.std(
                 mean_episode_mean_distance_to_visible_objects_when_not_switching_task_two)
-            mean_soc_task_one, std_soc_task_one = ([np.mean(current_list) for current_list in
-                                                    self.evaluations_mean_soc_task_one[0]],
-                                                   [np.std(current_list) for current_list in
-                                                    self.evaluations_mean_soc_task_two[0]])
-            mean_soc_task_two, std_soc_task_two = ([np.mean(current_list) for current_list in
-                                                    self.evaluations_mean_soc_task_two[0]],
-                                                   [np.std(current_list) for current_list in
-                                                    self.evaluations_mean_soc_task_two[0]])
+            mean_soc_task_one, std_soc_task_one = (
+                [np.mean(current_list) for current_list in episode_socs_of_task_one],
+                [np.std(current_list) for current_list in episode_socs_of_task_one])
+            mean_soc_task_two, std_soc_task_two = (
+                [np.mean(current_list) for current_list in episode_socs_of_task_two],
+                [np.std(current_list) for current_list in episode_socs_of_task_two])
             ###
             self.last_mean_reward = float(mean_reward)
             
